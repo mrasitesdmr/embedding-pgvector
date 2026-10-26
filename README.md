@@ -1,5 +1,9 @@
 ![tmux](kaynaklar/tmux.png)
 
+[Video 1: Ekran Kaydı 2026-10-26 15.14.40](kaynaklar/Ekran%20Kayd%C4%B1%202026-10-26%2015.14.40.mov)
+
+[Video 2: Ekran Kaydı 2026-10-26 15.40.25](kaynaklar/Ekran%20Kayd%C4%B1%202026-10-26%2015.40.25.mov)
+
 ## Agent ekibi
 
 | Sıra | Agent | Model | Görev |
