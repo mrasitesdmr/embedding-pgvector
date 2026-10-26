@@ -1,3 +1,18 @@
+![tmux](kaynaklar/tmux.png)
+
+## Agent ekibi
+
+| Sıra | Agent | Model | Görev |
+|------|-------|-------|-------|
+| 1 | `planner` | opus | Task'ı analiz eder; onay kartını ve teknik planı yazar, gerekirse `docs/api/` sözleşmesini günceller. Kod yazmaz. |
+| 2 | `backend-coder` | opus | Planın backend kısmını Spring Boot ile uygular. Sadece `backend/` altına yazar, test yazmaz. |
+| 2 | `frontend-coder` | opus | Planın frontend kısmını React ile uygular. Sadece `frontend/` altına yazar, test yazmaz. |
+| 3 | `tester` | sonnet | Backend (JUnit) ve frontend (Vitest, Playwright) testlerini yazar ve çalıştırır. |
+| 4 | `devops` | sonnet | Dockerfile ve docker-compose dosyalarını yazar, sistemi ayağa kaldırıp smoke kontrolü yapar. |
+| 5 | `qa` | sonnet | Bağımsız son kontrol: değişiklikleri task'a ve sözleşmeye karşı denetler, mutation ve uçtan uca testleri çalıştırır. |
+
+Tanımlar `.claude/agents/` altındadır. `backend-coder` ve `frontend-coder` paralel çalışır.
+
 # Embedding ve pgvector
 
 Embedding, vektör benzerliği ve PostgreSQL'de pgvector ile vektör aramayı anlatan, bunları çalışan bir demoyla gösteren eğitim projesi.
