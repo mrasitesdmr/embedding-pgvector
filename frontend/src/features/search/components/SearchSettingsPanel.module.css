@@ -1,0 +1,128 @@
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+}
+
+.summary {
+  cursor: pointer;
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-brand-strong);
+  border-radius: var(--radius-lg);
+}
+
+.summary:hover {
+  background: var(--color-surface-subtle);
+}
+
+.panel[open] .summary {
+  border-bottom: 1px solid var(--color-line);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-7) var(--space-9);
+  padding: var(--space-7) var(--space-6);
+  align-items: start;
+}
+
+.group {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.group:disabled {
+  opacity: 0.55;
+}
+
+.legend,
+.label {
+  display: block;
+  padding: 0;
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.number {
+  width: 8em;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.number:disabled {
+  opacity: 0.55;
+  background: var(--color-surface-subtle);
+}
+
+.number[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.error {
+  margin-top: var(--space-2);
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.checkboxField {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+  align-self: center;
+}
+
+.checkboxField input:disabled + label {
+  opacity: 0.55;
+}
+
+.actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.reset {
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.reset:hover {
+  background: var(--color-surface-subtle);
+}

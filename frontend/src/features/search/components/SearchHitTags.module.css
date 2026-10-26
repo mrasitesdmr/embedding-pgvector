@@ -1,0 +1,16 @@
+.tag {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  border-radius: var(--radius-xs);
+  padding: 1px var(--space-3);
+}
+
+.semantic {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+}
+
+.keyword {
+  background: var(--color-keyword-soft);
+  color: var(--color-keyword);
+}

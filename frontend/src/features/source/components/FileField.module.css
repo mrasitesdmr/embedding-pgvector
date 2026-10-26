@@ -1,0 +1,68 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.input {
+  max-width: 100%;
+  font-size: var(--text-sm);
+}
+
+.input::file-selector-button {
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-weight: 700;
+  padding: var(--space-2) var(--space-5);
+  margin-right: var(--space-4);
+  cursor: pointer;
+}
+
+.input:disabled::file-selector-button {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.selected {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  border: 1px dashed var(--color-file-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-subtle);
+  padding: var(--space-5) var(--space-6);
+}
+
+.icon {
+  flex: none;
+  color: var(--color-brand);
+}
+
+.selectedText {
+  min-width: 0;
+}
+
+.fileName {
+  display: block;
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.fileSize {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}

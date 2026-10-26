@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "embedding-pgvector",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "embedding_pgvector",
+      "Username": "embedding",
+      "SSLMode": "prefer"
+    }
+  }
+}

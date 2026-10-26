@@ -1,0 +1,23 @@
+.info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-4);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-neutral-ink);
+  white-space: nowrap;
+}
+
+.item b {
+  color: var(--color-ink);
+  font-weight: 700;
+}

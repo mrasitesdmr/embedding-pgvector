@@ -1,0 +1,29 @@
+.indicators {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.indicator {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+}
+
+.label {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.number {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}

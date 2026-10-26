@@ -1,0 +1,43 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  height: var(--header-height);
+  padding: 0 var(--space-10);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-line);
+  flex: none;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+}
+
+.mark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  display: grid;
+  place-items: center;
+}
+
+.word {
+  font-size: var(--text-logo);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--color-brand-strong);
+}
+
+.dot {
+  color: var(--color-accent);
+}

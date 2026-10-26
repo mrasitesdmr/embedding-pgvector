@@ -1,0 +1,1540 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embedding-Pgvector</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Sol yarı: yanıt. bilgi bankası SaaS'ının Dalga Fiber çalışma alanı (tarayıcı çerçevesi içinde).
+   Sağ yarı: search-api'nin konsolu (harita + Network/Veritabanı/Sıralama/Index/Log/Kod). Açık ürün + koyu konsol bilinçli olarak sabit. */
+:root{
+  color-scheme:light;
+  --s-bg:#f3f5f6; --s-card:#ffffff; --s-ink:#1b2126; --s-muted:#66717a; --s-line:#e1e6e9;
+  --s-brand:#0e6170; --s-brand-d:#0a4a56; --s-brand-soft:#e5f1f3; --s-accent:#e9a23b; --s-accent-soft:#fdf3e2;
+  --s-red:#c23a2b; --s-red-soft:#fcecea; --s-green:#18794e; --s-green-soft:#e7f5ee;
+  --t-blue:#2357c6; --t-blue-soft:#e9effb;   /* Dalga Fiber'in kendi rengi: çalışma alanı rozeti */
+  --o-bg:#0e1115; --o-surf:#151920; --o-raise:#1c222b; --o-line:#29313c; --o-ink:#d9dfe7; --o-muted:#8590a0;
+  --o-blue:#5aa2ff; --o-green:#43b883; --o-amber:#e3a63c; --o-red:#f2625f; --o-violet:#b591ff;
+  --f-site:"Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--o-bg);color:var(--s-ink);font-family:var(--f-site);font-size:14px}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,a:focus-visible,select:focus-visible{outline:2px solid var(--o-blue);outline-offset:2px}
+.app{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);height:100%;
+  padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+@media (max-width:1000px){.app{grid-template-columns:minmax(0,1fr);height:auto}html,body{height:auto}}
+
+/* ============ ÜRÜN (yanıt. çalışma alanı) ============ */
+.site{display:flex;flex-direction:column;min-width:0;min-height:0;background:#dde2e4;padding:12px 12px 12px max(12px,env(safe-area-inset-left,0px));position:relative}
+.win{flex:1;display:flex;flex-direction:column;min-height:0;background:var(--s-bg);border-radius:10px;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.04),0 10px 30px rgba(20,30,35,.13);position:relative}
+@media (max-width:1000px){.win{height:auto;flex:none}.sbody{overflow:visible!important}}
+.chrome{display:flex;align-items:center;gap:12px;background:#e9edee;border-bottom:1px solid #d3d9db;padding:8px 12px}
+.dots{display:flex;gap:6px}.dots i{width:11px;height:11px;border-radius:50%;background:#c9cfd2;display:block}
+.urlbar{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #d5dbdd;border-radius:7px;padding:5px 10px;font:500 12.5px var(--f-site);color:#4f5a61}
+.urlbar svg{flex:none}
+.urlbar span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.urlbar b{color:var(--s-ink);font-weight:600}
+.sbody{flex:1;overflow:hidden;min-height:0;container-type:inline-size;display:flex;flex-direction:column}
+
+.apphead{display:flex;align-items:center;gap:12px;padding:0 14px;height:52px;flex:none;background:#fff;border-bottom:1px solid var(--s-line);position:sticky;top:0;z-index:6}
+.logo{display:flex;align-items:center;gap:7px;flex:none;border:0;background:none;padding:0}
+.logo .mark{width:28px;height:28px;border-radius:8px;background:var(--s-brand);display:grid;place-items:center}
+.logo .word{font:800 22px/1 var(--f-site);letter-spacing:-.03em;color:var(--s-brand-d)}
+.logo .word i{font-style:normal;color:var(--s-accent)}
+.ws{display:flex;align-items:center;gap:8px;border:1px solid var(--s-line);border-radius:8px;padding:3px 9px 3px 3px;background:#fff;font:600 13px var(--f-site);color:var(--s-ink);flex:none}
+.ws .tav{width:26px;height:26px;border-radius:6px;background:var(--t-blue);color:#fff;display:grid;place-items:center;font:800 13px var(--f-site)}
+.ws small{color:var(--s-muted);font-weight:500;font-size:11.5px}
+.me{width:30px;height:30px;border-radius:50%;background:#f3e6d2;color:#8a5a14;display:grid;place-items:center;font:800 12px var(--f-site);flex:none}
+.who{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;line-height:1.2;min-width:0}
+.who b{font-size:13px}.who small{font-size:11.5px;color:var(--s-muted);white-space:nowrap}
+@container (max-width:640px){.ws small{display:none}.who{display:none}.me{margin-left:auto}}
+
+.shell{flex:1;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);min-height:0}
+/* Üç sayfalık çalışma alanı: gezinme başlığın altında yatay sekmeler */
+.shell>.side{flex-direction:row;align-items:stretch;gap:2px;padding:0 12px;border-right:0;border-bottom:1px solid var(--s-line);background:#fff;overflow-x:auto}
+.shell>.side button{width:auto;border-radius:0;padding:10px 10px 9px;border-bottom:2px solid transparent;white-space:nowrap}
+.shell>.side button:hover{background:none;color:var(--s-brand-d)}
+.shell>.side button.on{background:none;border-bottom-color:var(--s-brand)}
+.shell>.side .cnt{margin-left:6px}
+.side{border-right:1px solid var(--s-line);background:#fafbfb;padding:10px 8px;display:flex;flex-direction:column;gap:1px}
+.side h6{font:700 10.5px var(--f-site);color:#88939a;text-transform:uppercase;letter-spacing:.06em;margin:12px 8px 4px}
+.side h6:first-child{margin-top:2px}
+.side button{display:flex;align-items:center;gap:8px;border:0;background:none;padding:7px 8px;border-radius:7px;font:600 13px var(--f-site);color:#39444b;text-align:left;width:100%}
+.side button:hover{background:#eef2f3}
+.side button.on{background:var(--s-brand-soft);color:var(--s-brand-d)}
+.side button svg{flex:none;color:#7a868d}
+.side button.on svg{color:var(--s-brand)}
+.side .cnt{margin-left:auto;font:700 10.5px var(--f-site);background:#e9eef0;color:#56626a;border-radius:9px;padding:1px 6px}
+.side .cnt.r{background:var(--s-red-soft);color:var(--s-red)}
+
+
+.page{padding:16px 18px 30px;display:flex;flex-direction:column;gap:12px;min-width:0;overflow:auto;min-height:0;position:relative}
+@media (max-width:1000px){.page{overflow:visible}}
+.page>*{flex-shrink:0}
+.crumbs{display:flex;gap:7px;align-items:center;font-size:12.5px;color:var(--s-muted);flex-wrap:wrap}
+.crumbs button{border:0;background:none;padding:0;color:var(--s-muted);font:inherit}
+.crumbs button:hover{color:var(--s-brand)}
+.crumbs b{color:var(--s-ink);font-weight:600}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ph h1{margin:0;font:700 20px/1.25 var(--f-site);letter-spacing:-.01em}
+.ph p{margin:3px 0 0;color:var(--s-muted);font-size:13.5px;max-width:62ch}
+.btn{border:0;border-radius:8px;background:var(--s-brand);color:#fff;font:700 13px var(--f-site);padding:8px 13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{background:var(--s-brand-d)}
+.btn.out{background:#fff;color:var(--s-ink);border:1px solid #cfd6d9}
+.btn.out:hover{background:#f4f6f7}
+.btn.sm{padding:5px 9px;font-size:12px}
+
+.cfg{display:flex;flex-wrap:wrap;gap:6px}
+.cfg span{border:1px solid var(--s-line);background:#fff;border-radius:6px;padding:3px 7px;font:500 11.5px var(--f-site);color:#56626a;white-space:nowrap}
+.cfg span b{color:var(--s-ink);font-weight:700}
+.cfg span.w{border-color:#efcf9c;background:var(--s-accent-soft)}
+
+
+.sbox{display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #cfd8db;border-radius:10px;padding:4px 4px 4px 12px}
+.sbox:focus-within{border-color:var(--s-brand)}
+.sbox svg{flex:none}
+.sbox input{flex:1;min-width:0;border:0;outline:0;font:400 15px var(--f-site);color:var(--s-ink);padding:7px 0;background:transparent}
+.sbox button{border:0;background:var(--s-brand);color:#fff;border-radius:7px;font:700 13.5px var(--f-site);padding:8px 18px}
+.sbox button:hover{background:var(--s-brand-d)}
+.sbox button[disabled]{opacity:.5;cursor:default}
+.sugg{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--s-muted)}
+.sugg button{border:1px solid var(--s-line);background:#fff;color:#2f3b43;border-radius:14px;padding:3px 10px;font:600 12.5px var(--f-site)}
+.sugg button:hover{border-color:var(--s-brand);color:var(--s-brand-d)}
+.rhead{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--s-line);padding:4px 0 7px}
+.rhead b{font-size:15px}.rhead span{color:var(--s-muted);font-size:13px}
+.rlist{display:flex;flex-direction:column;gap:8px}
+.res{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;text-align:left;border:1px solid var(--s-line);background:#fff;border-radius:10px;padding:10px 12px;font:inherit;color:inherit;width:100%}
+.res:hover{border-color:#b9cdd2;box-shadow:0 2px 10px rgba(20,40,45,.06)}
+.res .rn{font:700 12px var(--f-site);color:#8a959c;padding-top:2px}
+.res .rb{display:flex;flex-direction:column;gap:3px;min-width:0}
+.res .rt{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.res .rt b{font-size:14.5px;color:var(--s-brand-d)}
+.res .rs{font-size:13.5px;line-height:1.45;color:#3a464e}
+.res small{font-size:12px;color:var(--s-muted)}
+.res mark{background:#ffeec2;color:inherit;border-radius:2px;padding:0 1px}
+.mt{font:700 10.5px var(--f-site);border-radius:4px;padding:1px 6px}
+.mt.a{background:var(--s-brand-soft);color:var(--s-brand-d)}.mt.k{background:#efe9fb;color:#5b3fa8}
+.empty{border:1px dashed #cbd5d8;border-radius:10px;padding:18px 16px;display:flex;flex-direction:column;gap:3px;background:#fff}
+.empty b{font-size:14.5px}.empty span{color:var(--s-muted);font-size:13px}
+.rsk{border:1px solid var(--s-line);border-radius:10px;background:#fff;padding:12px;display:flex;flex-direction:column;gap:7px}
+.rsk i{display:block;height:10px;border-radius:5px;background:linear-gradient(90deg,#eef1f2,#f6f8f8,#eef1f2);background-size:200% 100%;animation:sh 1.2s linear infinite}
+.rsk i:first-child{width:45%;height:12px}.rsk i:last-child{width:70%}
+@keyframes sh{to{background-position:-200% 0}}
+.tbl{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--s-line);border-radius:10px;overflow:hidden;font-size:13px}
+.tbl th{text-align:left;font:700 11px var(--f-site);color:#7d888f;text-transform:uppercase;letter-spacing:.05em;padding:9px 12px;border-bottom:1px solid var(--s-line);background:#fafbfb;white-space:nowrap}
+.tbl td{padding:10px 12px;border-bottom:1px solid #edf1f2;vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tr.click{cursor:pointer}
+.tbl tr.click:hover td{background:#f8fafa}
+.tbl tr.hl td{background:#fff8e8}
+.tbl td b{display:block;font-weight:600}
+.tbl td small{display:block;color:var(--s-muted);font-size:12px}
+.tbl td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.tbl .tx{color:#3a464e;line-height:1.4}
+.st{display:inline-flex;align-items:center;gap:5px;font:700 11.5px var(--f-site);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.st.ok{background:var(--s-green-soft);color:var(--s-green)}
+.st.run{background:var(--s-accent-soft);color:#91600f}
+.st.bad{background:var(--s-red-soft);color:var(--s-red)}
+.st.gr{background:#eef1f2;color:#56626a}
+.prog{margin-top:6px;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#5d686f}
+.prog .bar{height:5px;border-radius:3px;background:#e8edef;overflow:hidden}
+.prog .bar i{display:block;height:100%;background:var(--s-accent);transition:width .4s}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.kpi{background:#fff;border:1px solid var(--s-line);border-radius:10px;padding:10px 12px}
+.kpi span{display:block;font-size:12px;color:var(--s-muted)}
+.kpi b{font:700 20px var(--f-site);letter-spacing:-.01em}
+.kpi small{font-size:12px;color:var(--s-muted)}
+@container (max-width:560px){.kpis{grid-template-columns:minmax(0,1fr)}}
+.meta{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.meta div{background:#fff;border:1px solid var(--s-line);border-radius:8px;padding:8px 10px}
+.meta span{display:block;font-size:11.5px;color:var(--s-muted)}
+.meta b{font-size:13.5px;font-weight:600;overflow-wrap:anywhere}
+.callout{display:flex;gap:10px;align-items:flex-start;background:var(--s-brand-soft);border:1px solid #c9e1e5;border-radius:9px;padding:9px 12px;font-size:13px;color:#24474e}
+.callout.w{background:var(--s-accent-soft);border-color:#f0d6a8;color:#6b4a10}
+.callout svg{flex:none;margin-top:2px}
+.modal{position:absolute;inset:0;background:rgba(20,28,32,.38);display:grid;place-items:center;z-index:30;padding:16px}
+.modal[hidden]{display:none}
+.dlg{background:#fff;border-radius:12px;width:min(420px,100%);box-shadow:0 18px 50px rgba(0,0,0,.25);padding:16px;display:flex;flex-direction:column;gap:12px}
+.dlg h3{margin:0;font:700 16px var(--f-site)}
+.dlg p{margin:0;font-size:13px;color:var(--s-muted)}
+.file{display:flex;gap:10px;align-items:center;border:1px dashed #b9c6cb;border-radius:9px;padding:10px 12px;background:#fafcfc}
+.file b{display:block;font-size:13.5px;overflow-wrap:anywhere}
+.file small{color:var(--s-muted);font-size:12px}
+.dlg .row{display:flex;justify-content:flex-end;gap:8px}
+.dlg.chunk{width:min(620px,100%);max-height:calc(100% - 16px)}
+.dlg .dhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.dlg .dhead h3{color:var(--s-brand-d)}
+.dlg .x{border:0;background:none;font:400 22px/1 var(--f-site);color:var(--s-muted);cursor:pointer;padding:0 4px}
+.dlg .dtags{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.dlg .dtags small{font-size:12px;color:var(--s-muted)}
+.dlg .ctext{font-size:13.5px;line-height:1.55;color:#3a464e;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;overscroll-behavior:contain;min-height:0;flex:1;border:1px solid var(--s-line);border-radius:8px;padding:10px 12px;background:#fafcfc}
+.dlg mark{background:#ffeec2;color:inherit;border-radius:2px;padding:0 1px}
+.tbl .tx.full{white-space:pre-wrap}
+.toasts{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;z-index:40;width:min(92%,380px)}
+.toast{background:#1b2126;color:#fff;border-radius:9px;padding:10px 14px;font:600 13px var(--f-site);display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.2);animation:tin .25s ease-out;width:100%}
+@keyframes tin{from{transform:translateY(8px);opacity:0}}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ============ SİSTEM KONSOLU ============ */
+.ops{font-variant-ligatures:none;font-feature-settings:"calt" 0,"liga" 0;background:var(--o-bg);color:var(--o-ink);display:flex;flex-direction:column;min-width:0;min-height:0;font-family:var(--f-mono);font-size:12px;
+  padding-right:env(safe-area-inset-right,0px)}
+.obar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 14px;border-bottom:1px solid var(--o-line);background:var(--o-surf)}
+.obar .ttl{display:flex;flex-direction:column;margin-right:auto;min-width:0}
+.obar .ttl b{font:600 13px var(--f-site);color:#fff;letter-spacing:.01em}
+.obar .ttl span{font-size:11px;color:var(--o-muted)}
+.obar .ttl a{color:inherit}
+.seg{display:inline-flex;border:1px solid var(--o-line);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--o-muted);font:600 11.5px var(--f-mono);padding:6px 8px}
+.seg button+button{border-left:1px solid var(--o-line)}
+.seg button[aria-pressed="true"]{background:var(--o-raise);color:#fff;box-shadow:inset 0 -2px 0 var(--o-blue)}
+.tgl{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--o-line);background:transparent;color:var(--o-ink);font:500 11.5px var(--f-mono);padding:6px 8px;border-radius:7px}
+.tgl .led{width:8px;height:8px;border-radius:50%;background:var(--o-green);box-shadow:0 0 6px var(--o-green)}
+.tgl.down{border-color:#5a2b2b;color:#ffb3b1}
+.tgl.down .led{background:var(--o-red);box-shadow:0 0 6px var(--o-red)}
+.tgl.arm{border-color:#5b4620;color:#ffd38a}
+.tgl.arm .led{background:var(--o-amber);box-shadow:0 0 6px var(--o-amber)}
+.tgl.off .led{background:#4a5260;box-shadow:none}
+.tgl.blue .led{background:var(--o-blue);box-shadow:0 0 6px var(--o-blue)}
+.ibtn{border:1px solid var(--o-line);background:transparent;color:var(--o-muted);font:500 11.5px var(--f-mono);padding:6px 9px;border-radius:7px}
+.ibtn:hover,.tgl:hover{background:var(--o-raise)}
+.olbl{font-size:10px;color:#6d7888;text-transform:uppercase;letter-spacing:.06em}
+
+.map{padding:8px 14px 6px;border-bottom:1px solid var(--o-line);background:radial-gradient(circle at 1px 1px,#1d232c 1px,transparent 0) 0 0/16px 16px}
+.map svg{width:100%;height:auto;display:block;max-height:228px}
+.map .nd rect{fill:var(--o-surf);stroke:var(--o-line);stroke-width:1.2;transition:stroke .2s,fill .2s}
+.map .nd text{fill:var(--o-ink);font:600 11px var(--f-mono)}
+.map .nd text.sub{fill:var(--o-muted);font:400 9.5px var(--f-mono)}
+.map .nd.hot rect{stroke:var(--o-blue);fill:#17263a}
+.map .nd.warn rect{stroke:var(--o-amber);fill:#2a2212}
+.map .nd.warn text.sub{fill:var(--o-amber)}
+.map .nd.bad rect{stroke:var(--o-red);fill:#2a1517}
+.map .nd.bad text.sub{fill:var(--o-red)}
+.map .nd.dim,.map .ed.dim{opacity:.22}
+.map .tb rect{fill:var(--o-raise);stroke:none}
+.map .tb.hot rect{fill:#203a5c}
+.map .tb.tx rect{fill:#2c2412}
+.map .tb text{font:500 10px var(--f-mono);fill:var(--o-ink)}
+.map .tb text.r{fill:var(--o-muted)}
+.map .ed{fill:none;stroke:#3a4452;stroke-width:1.4}
+.map .lab{font:400 9px var(--f-mono);fill:var(--o-muted)}
+.health{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:4px 0 2px;font-size:11px;color:var(--o-muted)}
+.health b{color:var(--o-ink);font-weight:600}
+.hchip{font-weight:600;padding:2px 8px;border-radius:5px;margin-left:auto}
+.hchip.ok{background:#14301f;color:var(--o-green)}
+.hchip.wait{background:#33280f;color:var(--o-amber)}
+.hchip.bad{background:#3a1717;color:var(--o-red)}
+.hchip.na{background:var(--o-raise);color:var(--o-muted)}
+
+.narr{display:flex;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--o-line);background:#121821}
+.narr .no{flex:none;font:600 10.5px var(--f-mono);color:var(--o-blue);border:1px solid #2b4466;padding:3px 7px;border-radius:5px;white-space:nowrap}
+.narr .tx{flex:1;min-width:0}
+.narr .tx b{display:block;font:600 13.5px/1.3 var(--f-site);color:#fff}
+.narr .tx span{display:block;font:400 12.5px/1.4 var(--f-site);color:#a9b3c1;margin-top:2px}
+.next{flex:none;border:0;border-radius:7px;background:var(--o-blue);color:#071322;font:700 12px var(--f-mono);padding:9px 12px}
+.next[disabled]{background:var(--o-raise);color:#56606e;cursor:default}
+.next:not([disabled]){animation:nudge 1.6s ease-in-out infinite}
+@keyframes nudge{50%{box-shadow:0 0 0 4px rgba(90,162,255,.22)}}
+
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--o-line);background:var(--o-surf);overflow-x:auto;scrollbar-width:none}
+.tabs button{border:0;background:transparent;color:var(--o-muted);font:500 12px var(--f-mono);padding:9px 10px;white-space:nowrap;border-bottom:2px solid transparent}
+.tabs button[aria-selected="true"]{color:#fff;border-bottom-color:var(--o-blue)}
+.tabs button i{font-style:normal;font-size:10px;background:var(--o-raise);color:var(--o-muted);padding:1px 5px;border-radius:8px;margin-left:5px}
+.tabs button.ping i{background:var(--o-blue);color:#071322}
+.tabs .sp{flex:1}
+.tabs label{display:flex;align-items:center;gap:6px;color:var(--o-muted);font-size:11px;padding:0 12px;white-space:nowrap}
+.pane{flex:1;overflow:auto;min-height:0}
+@media (max-width:1000px){.pane{height:auto;min-height:160px;max-height:520px;flex:none}}
+.pane[hidden]{display:none}
+
+.ntable{width:100%;border-collapse:collapse;font-size:11.5px}
+.ntable th{position:sticky;top:0;background:var(--o-surf);color:var(--o-muted);font-weight:500;text-align:left;padding:6px 10px;border-bottom:1px solid var(--o-line);white-space:nowrap}
+.ntable td{padding:6px 10px;border-bottom:1px solid #1b2129;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ntable tr.row{cursor:pointer}
+.ntable tr.row:hover td{background:#141a22}
+.ntable tr.sel td{background:#172539}
+.ntable tr.fresh td{animation:fresh 1.2s ease-out}
+@keyframes fresh{from{background:#1b3150}}
+.m-GET{color:var(--o-green)}.m-POST{color:var(--o-amber)}
+.s2{color:var(--o-green)}.s5{color:var(--o-red)}.sP{color:var(--o-muted)}
+.ntable td.path{color:#fff;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.detail{border-top:1px solid var(--o-line);padding:10px 12px;display:flex;flex-direction:column;gap:10px;background:#10141a}
+.detail h4{margin:0;font:600 10.5px var(--f-mono);color:var(--o-muted);text-transform:uppercase;letter-spacing:.08em}
+.kvs{display:grid;grid-template-columns:150px minmax(0,1fr);gap:3px 10px;font-size:11.5px}
+.kvs span:nth-child(odd){color:var(--o-muted)}
+.kvs span{overflow-wrap:anywhere}
+pre.json{margin:0;background:var(--o-surf);border:1px solid var(--o-line);border-radius:6px;padding:9px 10px;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:400 11.5px/1.55 var(--f-mono);color:var(--o-ink)}
+.jk{color:#8fc4ff}.js{color:#b5e48c}.jn{color:#ffc477}.jb{color:var(--o-violet)}
+.hint{padding:16px 14px;color:var(--o-muted);font:400 12.5px/1.5 var(--f-site)}
+
+.dbwrap,.xwrap{padding:12px;display:flex;flex-direction:column;gap:12px}
+.dtable{border:1px solid var(--o-line);border-radius:7px;overflow:hidden;background:var(--o-surf)}
+.dtable .cap{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--o-line);font-size:11px;color:var(--o-muted)}
+.dtable .cap b{color:#fff;font-weight:600}
+.dtable .cap .db{color:var(--o-violet);white-space:nowrap}
+.dscroll{overflow-x:auto;max-height:230px;overflow-y:auto}
+.dt{border-collapse:collapse;font-size:11px;width:100%}
+.dt th{text-align:left;color:var(--o-muted);font-weight:500;padding:5px 9px;border-bottom:1px solid var(--o-line);white-space:nowrap;background:var(--o-surf);position:sticky;top:0}
+.dt td{padding:5px 9px;border-bottom:1px solid #1d232c;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dt tr:last-child td{border-bottom:0}
+.dt tr.new td{animation:fresh 1.4s ease-out}
+.dt tr.unc td{font-style:italic;color:#c9b88e;background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(227,166,60,.07) 6px 12px)}
+.dt .null{color:#5c6675}
+.dt .vec{color:#9fb4cc}
+.dt tr.cut td{color:#5c6675}
+.dt tr.pass td.c{color:var(--o-green);font-weight:600}
+.dt tr.gold td.n,.dt tr.gold td.c2{color:var(--o-amber)}
+.dt td.n{max-width:230px;overflow:hidden;text-overflow:ellipsis}
+.dt td.n.w{white-space:normal;min-width:150px;max-width:none;overflow:visible}
+.dt td.f{color:#c9b6ff}
+.dt td.s{color:#fff;font-weight:600}
+.pill{font-weight:600;font-size:10px;padding:1px 6px;border-radius:4px}
+.pill.S{background:#14301f;color:var(--o-green)}.pill.R{background:#3a1717;color:var(--o-red)}.pill.T{background:#33280f;color:var(--o-amber)}.pill.B{background:#172539;color:var(--o-blue)}
+.dempty{padding:10px;color:var(--o-muted);font-size:11px}
+.sqllog{display:flex;flex-direction:column;gap:6px}
+.sq{border-left:2px solid var(--o-line);padding:3px 0 3px 10px}
+.sq.fresh{border-left-color:var(--o-blue)}
+.sq .h{display:flex;gap:10px;color:var(--o-muted);font-size:10.5px;flex-wrap:wrap}
+.sq .h .w{color:var(--o-violet)}
+.sq code{display:block;white-space:pre-wrap;color:#e6ebf1;font:400 11.5px/1.5 var(--f-mono);margin-top:2px;overflow-wrap:anywhere}
+.kw{color:#ff8fa3}
+.xmeta{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--o-muted)}
+.xmeta b{color:#fff;font-weight:600}
+.xmeta .tsq{color:#c9b6ff}
+pre.plan{margin:0;background:var(--o-surf);border:1px solid var(--o-line);border-radius:7px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;font:400 11.5px/1.6 var(--f-mono);color:#dfe5ec}
+pre.plan.q{color:#c9d1db;background:#10141a}
+pre.plan .bad{background:#3a1c1c;color:#ffc9c7;border-radius:3px}
+pre.plan .good{background:#163222;color:#bdf0d2;border-radius:3px}
+pre.plan .wt{background:#33280f;color:#ffd38a;border-radius:3px}
+.note2{font:400 12px/1.5 var(--f-site);color:#a9b3c1;max-width:72ch;margin:0}
+.note2 b{color:#fff}
+.gucs{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.guc{border:1px solid var(--o-line);border-radius:7px;background:var(--o-surf);padding:7px 9px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.guc span{color:var(--o-muted);font-size:10.5px}
+.guc b{color:#fff;font-weight:600;font-size:12px;overflow-wrap:anywhere}
+.guc b.ch{color:var(--o-amber)}
+.legs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+@media (max-width:1250px){.legs{grid-template-columns:minmax(0,1fr)}}
+.leg{border:1px solid var(--o-line);border-radius:7px;background:var(--o-surf);min-width:0}
+.leg.off{opacity:.45}
+.leg h5{margin:0;padding:7px 10px;border-bottom:1px solid var(--o-line);font:600 11px var(--f-mono);color:#fff;display:flex;justify-content:space-between;gap:8px}
+.leg h5 span{color:var(--o-muted);font-weight:400}
+.leg ol{list-style:none;margin:0;padding:4px 0}
+.leg li{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:6px;padding:3px 10px;font-size:11px;align-items:baseline}
+.leg li .r{color:var(--o-muted)}
+.leg li .nm{overflow-wrap:anywhere;line-height:1.35}
+.leg li .v{color:#9fb4cc;font-variant-numeric:tabular-nums}
+.leg li.gold .nm{color:var(--o-amber)}
+.leg .none{padding:8px 10px;color:var(--o-muted);font:400 11.5px/1.45 var(--f-site)}
+.leg .tsql{padding:7px 10px 0;font:400 11px/1.45 var(--f-mono);color:#c9b6ff;overflow-wrap:anywhere}
+
+.logs{padding:8px 0;font:400 11.3px/1.55 var(--f-mono)}
+.lg{padding:1px 12px;display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:8px;align-items:baseline}
+.lg.new{animation:fresh 1.2s ease-out}
+.lg time{color:#5f6a79}
+.lg .lv{font-weight:600;width:38px}
+.lv.INFO{color:var(--o-green)}.lv.WARN{color:var(--o-amber)}.lv.ERROR{color:var(--o-red)}.lv.DEBUG{color:#6f7b8c}
+.lg .m{color:#c9d1db;overflow-wrap:anywhere}
+.lg .m .svc{color:var(--o-violet)}
+.lg .m .cls{color:#7fa6d6}
+.code{padding:12px;display:flex;flex-direction:column;gap:10px}
+.code h4{margin:4px 0 0;font:600 10.5px var(--f-mono);color:var(--o-muted);text-transform:uppercase;letter-spacing:.08em}
+.code pre{font-feature-settings:"calt" 0,"liga" 0;margin:0;background:var(--o-surf);border:1px solid var(--o-line);border-radius:7px;padding:12px;overflow-x:auto;font:400 11.5px/1.6 var(--f-mono);color:#dfe5ec}
+.code p{margin:0;font:400 12.5px/1.5 var(--f-site);color:#a9b3c1;max-width:70ch}
+.code p b{color:#fff}
+.code .an{color:#ffcf70}.code .kk{color:#ff8fa3}.code .cm{color:#6a7686;font-style:italic}.code .hl{background:#2a3a1c;color:#d9f2b8;border-radius:3px}.code .bad{background:#3a1c1c;color:#ffc9c7;border-radius:3px}.code .st2{color:#b5e48c}
+/* JetBrains Mono <=>, ->, :: gibi dizileri tek glife birleştirir (calt). Konsolda SQL operatörleri yazıldığı gibi görünmeli. */
+.ops,.ops *{font-variant-ligatures:none!important;font-feature-settings:"calt" 0,"liga" 0!important}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ================= SOL: yanıt. ÇALIŞMA ALANI ================= -->
+  <section class="site" aria-label="yanıt. bilgi bankası, Dalga Fiber çalışma alanı">
+    <div class="win">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="urlbar"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4c8a6e" stroke-width="2.4"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span id="url"><b>app.yanit.io</b>/w/dalga/arama</span></div>
+      </div>
+      <div class="sbody" id="sbody">
+        <header class="apphead">
+          <button class="logo" id="go-home" aria-label="Arama">
+            <span class="mark"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v10H10l-5 4z"/><path d="M9 9.5h6M9 12h3.5"/></svg></span>
+            <span class="word">yanıt<i>.</i></span>
+          </button>
+          <span class="ws" title="Çalışma alanı"><span class="tav">D</span><span>Dalga Fiber <small>· ws 42</small></span></span>
+          <span class="who"><b>Raşit Eşdemir</b><small>Destek operasyon · Yönetici</small></span><span class="me">RE</span>
+        </header>
+        <div class="shell">
+          <nav class="side" aria-label="Çalışma alanı menüsü">
+            <button data-nav="arama" id="nav-arama"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Arama</button>
+            <button data-nav="kayitlar" id="nav-kayitlar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Arama kayıtları<span class="cnt" id="log-cnt">6</span></button>
+            <button data-nav="kaynaklar" id="nav-kaynaklar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4M8 12h8M8 16h6"/></svg>Bilgi kaynakları</button>
+          </nav>
+          <main class="page" id="page"></main>
+        </div>
+      </div>
+      <div class="modal" id="modal" hidden></div>
+    </div>
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+  </section>
+
+  <!-- ================= SAĞ: SİSTEM KONSOLU ================= -->
+  <aside class="ops" aria-label="Sistem konsolu">
+    <div class="obar">
+      <div class="ttl" title="Tarayıcıda çalışan bir simülasyon. Önerilen üç aramanın sayıları Docker'da (PostgreSQL 16, pgvector 0.8.7, 412.860 satır) ölçüldü; diğer aramalar yaklaşık bir modelle hesaplanır."><b>Sistem konsolu</b><span>simülasyon · ölçümler: Docker, pgvector 0.8.7</span></div>
+      <span class="olbl">arama</span>
+      <div class="seg" role="group" aria-label="Arama yöntemi">
+        <button id="m-kw" aria-pressed="false">Keyword</button><button id="m-vec" aria-pressed="false">Vector</button><button id="m-hyb" aria-pressed="true">Hybrid</button>
+      </div>
+      <span class="olbl">filtre</span>
+      <div class="seg" role="group" aria-label="Filtreli vector araması">
+        <button id="f-post" aria-pressed="false">post-filter</button><button id="f-iter" aria-pressed="true">iterative</button>
+      </div>
+      <button class="tgl blue" id="t-ef" title="hnsw.ef_search: 40 ↔ 100"><span class="led"></span><span id="t-ef-l">ef_search: 40</span></button>
+      <button class="tgl" id="t-model" title="Arama metnini, parçaların embed edildiği modelden farklı bir modelle embed et"><span class="led"></span><span id="t-model-l">sorgu modeli: 3-small</span></button>
+      <button class="tgl" id="t-step" title="Her adımda akışı durdur"><span class="led"></span><span id="t-step-l">adım adım</span></button>
+      <button class="ibtn" id="reset" title="Tüm verileri sıfırla">sıfırla</button>
+    </div>
+
+    <div class="map">
+      <svg viewBox="0 0 640 206" id="svg" role="img" aria-label="Mimari: web, search-api, embedding-api, ingest-worker, PostgreSQL kb-db ve sorgu planı">
+        <path class="ed" id="e-web" d="M94 102 H108"/>
+        <path class="ed" id="e-emb" d="M164 124 V154"/>
+        <path class="ed" id="e-pg" d="M220 96 C229 96 229 64 238 64"/>
+        <path class="ed" id="e-wrk" d="M94 174 H108"/>
+        <path class="ed" id="e-wpg" d="M49 194 V202 H333 V146"/>
+        <path class="ed" id="e-idx" d="M428 83 C436 83 436 24 444 24"/>
+        <path class="ed" id="e-flt" d="M494 42 V52"/>
+        <path class="ed" id="e-lim" d="M494 88 V98"/>
+        <path class="ed" id="e-lv" d="M494 134 V150"/>
+        <path class="ed" id="e-kw" d="M428 105 C438 105 434 172 444 172"/>
+        <path class="ed" id="e-cand" d="M544 24 H554"/>
+
+        <g class="nd" id="n-web"><rect x="4" y="80" width="90" height="44" rx="7"/><text x="49" y="99" text-anchor="middle">web</text><text class="sub" x="49" y="113" text-anchor="middle">app.yanit.io</text></g>
+        <g class="nd" id="n-api"><rect x="108" y="80" width="112" height="44" rx="7"/><text x="164" y="99" text-anchor="middle">search-api</text><text class="sub" x="164" y="113" text-anchor="middle">:8080 · UP</text></g>
+        <g class="nd" id="n-emb"><rect x="108" y="154" width="112" height="40" rx="7"/><text x="164" y="170" text-anchor="middle">embedding-api</text><text class="sub" x="164" y="184" text-anchor="middle" id="emb-s">3-small · 1536</text></g>
+        <g class="nd" id="n-wrk"><rect x="4" y="154" width="90" height="40" rx="7"/><text x="49" y="170" text-anchor="middle">ingest-worker</text><text class="sub" x="49" y="184" text-anchor="middle" id="wrk-s">boşta</text></g>
+        <g class="nd" id="n-pg"><rect x="238" y="6" width="190" height="140" rx="7"/><text x="248" y="22">postgres</text><text class="sub" x="418" y="22" text-anchor="end">pgvector 0.8.7</text>
+          <g class="tb" id="tb-src"><rect x="248" y="30" width="170" height="18" rx="4"/><text x="255" y="43">kb_sources</text><text class="r" x="411" y="43" text-anchor="end">ws 42 · 4</text></g>
+          <g class="tb" id="tb-chk"><rect x="248" y="52" width="170" height="18" rx="4"/><text x="255" y="65">kb_chunks</text><text class="r" x="411" y="65" text-anchor="end" id="chk-n">412.860</text></g>
+          <g class="tb" id="tb-hnsw"><rect x="248" y="74" width="170" height="18" rx="4"/><text x="255" y="87">embedding_idx</text><text class="r" x="411" y="87" text-anchor="end">hnsw</text></g>
+          <g class="tb" id="tb-gin"><rect x="248" y="96" width="170" height="18" rx="4"/><text x="255" y="109">tsv_idx</text><text class="r" x="411" y="109" text-anchor="end">gin</text></g>
+          <g class="tb" id="tb-ten"><rect x="248" y="118" width="170" height="18" rx="4"/><text x="255" y="131">tenant_idx</text><text class="r" x="411" y="131" text-anchor="end">btree</text></g>
+        </g>
+        <g class="nd" id="n-scan"><rect x="444" y="6" width="100" height="36" rx="7"/><text x="494" y="21" text-anchor="middle">Index Scan</text><text class="sub" x="494" y="34" text-anchor="middle" id="scan-s">ef_search = 40</text></g>
+        <g class="nd" id="n-flt"><rect x="444" y="52" width="100" height="36" rx="7"/><text x="494" y="67" text-anchor="middle">Filter</text><text class="sub" x="494" y="80" text-anchor="middle">tenant_id = 42</text></g>
+        <g class="nd" id="n-lim"><rect x="444" y="98" width="100" height="36" rx="7"/><text x="494" y="113" text-anchor="middle">Limit 10</text><text class="sub" x="494" y="126" text-anchor="middle" id="lim-s">semantic kolu</text></g>
+        <g class="nd" id="n-rrf"><rect x="444" y="150" width="100" height="44" rx="7"/><text x="494" y="168" text-anchor="middle">RRF · k=60</text><text class="sub" x="494" y="183" text-anchor="middle" id="rrf-s">kelime+anlam → 10</text></g>
+        <text class="lab" x="596" y="12" text-anchor="middle" id="cand-l">adaylar</text><text class="lab" x="596" y="162" text-anchor="middle" id="cand-l2"></text>
+        <g id="cand"></g>
+        <circle id="pkt" r="4.5" fill="#5aa2ff" opacity="0"/><circle id="pkt2" r="4.5" fill="#5aa2ff" opacity="0"/>
+      </svg>
+      <div class="health" id="health"></div>
+    </div>
+
+    <div class="narr">
+      <span class="no" id="n-no">HAZIR</span>
+      <div class="tx"><b id="n-title">Soldaki bilgi bankasında bir arama yap</b><span id="n-desc">Örneğin "Şifremi unuttum, online işlemlere giremiyorum". Arama metninin embed edilmesinden iki kola ve RRF'e kadar her adım burada durup açıklanacak. Bu konsol tarayıcıda çalışan bir simülasyon; önerilen üç aramanın sayıları Docker'da ölçüldü.</span></div>
+      <button class="next" id="next" disabled>Devam ▸</button>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="net" aria-selected="true">Network<i id="c-net">0</i></button>
+      <button role="tab" data-tab="db" aria-selected="false">Veritabanı<i id="c-db">0</i></button>
+      <button role="tab" data-tab="rank" aria-selected="false">Sıralama</button>
+      <button role="tab" data-tab="idx" aria-selected="false">Index<i id="c-idx">0</i></button>
+      <button role="tab" data-tab="log" aria-selected="false">Loglar<i id="c-log">0</i></button>
+      <button role="tab" data-tab="code" aria-selected="false">Kod</button>
+      <span class="sp"></span>
+      <label title="Adım hangi sekmeyle ilgiliyse oraya geç"><input type="checkbox" id="follow" checked> takip et</label>
+    </div>
+    <div class="pane" id="p-net"></div>
+    <div class="pane" id="p-db" hidden></div>
+    <div class="pane" id="p-rank" hidden></div>
+    <div class="pane" id="p-idx" hidden></div>
+    <div class="pane" id="p-log" hidden><div class="logs" id="logs"></div></div>
+    <div class="pane" id="p-code" hidden></div>
+  </aside>
+</div>
+
+<script>
+const IMG = {};
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pad=(n,l=2)=>String(n).padStart(l,'0');
+const clock=()=>{const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(),3)}`};
+const hm=()=>clock().slice(0,5);
+const rnd=(a,b)=>Math.round(a+Math.random()*(b-a));
+const trLow=s=>s.toLocaleLowerCase('tr');
+const fmt=(n,d=4)=>n.toFixed(d);
+const nTr=n=>n.toLocaleString('tr-TR');
+const pct=n=>'%'+String(n).replace('.',',');
+// sayıdan sonra iyelik eki, okunuşa göre: 37'si, 40'ı, 3'ü; acc: belirtme ekiyle 37'sini, 40'ını
+function ek(n,acc){const W=['sıfır','bir','iki','üç','dört','beş','altı','yedi','sekiz','dokuz'],T=['','on','yirmi','otuz','kırk','elli','altmış','yetmiş','seksen','doksan'],V='aeıioöuü';
+  const w=n%10?W[n%10]:n%100?T[n%100/10]:n%1000?'yüz':n?'bin':'sıfır';
+  const h={a:'ı',ı:'ı',e:'i',i:'i',o:'u',u:'u',ö:'ü',ü:'ü'}[[...w].reverse().find(c=>V.includes(c))];
+  return `${n}'${V.includes(w.at(-1))?'s':''}${h}${acc?'n'+h:''}`;}
+function h32(s){let h=2166136261;for(const c of String(s)){h^=c.codePointAt(0);h=Math.imul(h,16777619);}return h>>>0;}
+const vecShort=seed=>`[${Array.from({length:1},(_,i)=>(((h32(seed+'#'+i)%2000)/2000-.5)*.09).toFixed(3)).join(',')},…]`;
+const vecStr=seed=>`[${Array.from({length:3},(_,i)=>(((h32(seed+'#'+i)%2000)/2000-.5)*.09).toFixed(4)).join(',')},…]`;
+
+/* ================= SABİTLER =================
+   kb_chunks bütün çalışma alanlarının parçalarını tutar; Dalga Fiber (tenant 42) satırların %3,1'i.
+   post-filter beklentisi: ef_search 40 × 0,031 ≈ 1,2 satır. */
+const TENANT=42, TENANT_NAME='Dalga Fiber', TOTAL=412860, TENANTS=37, K=10, BRANCH=10, RRF_K=60, MAX_SCAN=20000, DIMS=1536;
+const MODEL='text-embedding-3-small', WRONG='text-embedding-ada-002', MODEL_TAG='text-embedding-3-small@1536';
+const SRC={
+  301:{code:'web_crawl',ts:'2026-10-23 06:00:12+03',name:'Yardım merkezi',kind:'Web sitesi',detail:'yardim.dalgafiber.com.tr · 186 makale',chunks:742,unit:'186 makale',synced:'bugün 06:00'},
+  302:{code:'pdf',ts:'2026-10-12 14:31:40+03',name:'Dalga T5 modem kullanım kılavuzu',kind:'PDF',detail:'48 sayfa · v3.1',chunks:212,unit:'48 sayfa',ver:'3.1',synced:'12 Eki 2026',file:'Dalga-T5-Kullanim-Kilavuzu-v3.1.pdf'},
+  303:{code:'csv',ts:'2026-10-08 10:02:55+03',name:'Modem hata kodları tablosu',kind:'CSV',detail:'120 satır',chunks:120,unit:'120 satır',synced:'08 Eki 2026'},
+  304:{code:'ticket_export',ts:'2026-10-23 06:10:47+03',name:'Çözülmüş destek talepleri',kind:'Talep geçmişi',detail:'son 12 ay · kişisel veriler maskelendi',chunks:11830,unit:'9.412 talep',synced:'bugün 06:10'},
+};
+const tenantRows=()=>Object.values(SRC).reduce((s,x)=>s+x.chunks,0);
+
+/* Dalga Fiber'in parçaları (kb_chunks, tenant_id = 42). t: token sayısı. Talep parçaları müşterinin kendi kelimeleriyle yazılmış. */
+const CH={
+  c1:{id:1845203,src:301,no:0,head:'Online İşlemler parolanı sıfırlama',t:96,text:"Online İşlemler parolanı hatırlamıyorsan giriş ekranındaki 'Parolamı unuttum' bağlantısına dokun. Abone numaranı ya da kayıtlı cep telefonu numaranı yaz; telefonuna 10 dakika geçerli bir doğrulama kodu gelir."},
+  c2:{id:1845204,src:301,no:1,head:'Online İşlemler parolanı sıfırlama',t:84,text:"Kodu girdikten sonra yeni parolanı iki kez yaz; parola en az 8 karakter olmalı ve bir rakam içermeli. Parolan değişince mobil uygulamadaki oturumların da kapanır."},
+  c3:{id:1845219,src:301,no:0,head:'Hesabım kilitlendi',t:71,text:"Online İşlemler'e arka arkaya 5 kez hatalı parola girilince hesap 30 dakika kilitlenir. Süre dolunca tekrar deneyebilir ya da parolanı sıfırlayabilirsin."},
+  c4:{id:1845226,src:301,no:0,head:'Doğrulama kodu gelmiyor',t:88,text:"Doğrulama kodu SMS ile kayıtlı cep telefonuna gönderilir. Numaran değiştiyse kod eski numaraya gider; numaranı güncellemek için kimlik bilgilerinle Müşteri Hizmetleri'ne bağlan."},
+  c5:{id:1845411,src:301,no:0,head:'TS-999 hata kodu: PPPoE kimlik doğrulaması başarısız',t:92,text:"TS-999, modemin internete bağlanırken gönderdiği PPPoE kullanıcı adı ve şifresinin kabul edilmediğini gösterir. Çoğunlukla modem fabrika ayarlarına döndükten sonra bu bilgiler silinince görülür."},
+  c6:{id:1845412,src:301,no:1,head:'TS-999 hata kodu: PPPoE kimlik doğrulaması başarısız',t:79,text:"Modem arayüzünü (192.168.1.1) aç, İnternet > PPPoE ekranına Online İşlemler > Hizmetlerim'de yazan kullanıcı adını ve şifreyi gir. Kaydedip modemi yeniden başlat."},
+  c7:{id:1851087,src:303,no:118,head:'Hata kodları tablosu · TS-999',t:41,text:"TS-999 hata kodu · PPPoE kimlik doğrulama hatası · Çözüm: modem arayüzünde PPPoE kullanıcı adı ve şifresini yeniden gir."},
+  c8:{id:1845402,src:301,no:0,head:'Modem hata kodları: TS ile başlayan kodlar',t:86,text:"Modem arayüzünde görünen hata kodları TS ile başlar. TS-1xx kodları fiber sinyaliyle, TS-5xx kodları Wi-Fi ile ilgilidir. Listede olmayan bir kod görürsen modemi kapatıp 30 saniye sonra yeniden aç."},
+  c9:{id:1845398,src:301,no:0,head:'Modem ışıkları ne anlama gelir',t:74,text:"PON ışığı yanıp sönüyorsa fiber bağlantısı kuruluyor demektir. LOS ışığı kırmızı yanıyorsa fiber kablo yerinden çıkmış ya da hasar görmüş olabilir."},
+  c10:{id:1845390,src:301,no:0,head:'İnternet bağlantın yoksa önce bunları kontrol et',t:81,text:"Modemi kapatıp 30 saniye bekle ve yeniden aç. Bölgende planlı çalışma olup olmadığına Online İşlemler > Arıza durumu ekranından bak."},
+  c11:{id:1845406,src:301,no:0,head:'TS-104 hata kodu: fiber sinyali zayıf',t:77,text:"TS-104, modemin fiber hattından aldığı sinyalin zayıf olduğunu gösterir. Fiber kablonun bükülmediğini ve prize tam oturduğunu kontrol et."},
+  c12:{id:1845530,src:301,no:1,head:'Nakil başvurusu',t:90,text:"Nakil başvurusu için Online İşlemler > Hizmetlerim > Nakil'i seç, yeni adresini yaz ve kurulum için randevu tarihi belirle. Başvurudan sonra yeni adresin altyapısı kontrol edilir, sonuç SMS ile bildirilir."},
+  c13:{id:1845529,src:301,no:0,head:'Taşınırken internetini yanında götür',t:83,text:"Taşınırken internetini yeni evine aldırabilirsin; bu işleme nakil denir. Nakil taahhüdünü bozmaz, tarifen ve fiyatın aynı kalır. Nakil ücreti ilk faturana yansır."},
+  c14:{id:1845535,src:301,no:0,head:'Yeni adreste altyapı sorgulama',t:76,text:"Yeni adresinin fiber altyapıya uygun olup olmadığını Online İşlemler > Altyapı sorgula ekranında il, ilçe ve bina numarasıyla görebilirsin. Altyapı uygun değilse nakil yerine dondurma ya da iptal seçenekleri sunulur."},
+  c15:{id:1846122,src:302,no:133,head:'s. 31 · Modemi yeni adreste kurma',t:102,text:"Taşındıktan sonra modemi yeni adresteki fiber prizine bağla. Kurulum randevusu tamamlanana kadar PON ışığı yanıp sönebilir; bu normaldir."},
+  k1:{id:1846089,src:302,no:9,head:'s. 4 · Kutu içeriği',t:64,text:"Kutuda Dalga T5 modem, 12 V adaptör, 1,5 m fiber patch kablo ve bir Ethernet kablosu bulunur."},
+  k2:{id:1846097,src:302,no:31,head:'s. 9 · Modemi fiber prizine bağlama',t:118,text:"Fiber patch kablonun yeşil ucunu duvardaki fiber prizine, diğer ucunu modemin arkasındaki PON girişine tak. Kabloyu 3 cm'den dar açıyla bükme."},
+  k3:{id:1846108,src:302,no:72,head:'s. 18 · Wi-Fi ağ adını ve şifresini değiştirme',t:109,text:"Modem arayüzünde Kablosuz > Temel ayarlar ekranından 2,4 GHz ve 5 GHz ağlarının adını ve şifresini ayrı ayrı değiştirebilirsin."},
+  k4:{id:1846141,src:302,no:191,head:'s. 44 · Fabrika ayarlarına dönme',t:97,text:"Arkadaki RESET düğmesine 10 saniye basılı tut. Fabrika ayarlarına dönünce PPPoE kullanıcı adı ve şifresi de silinir; yeniden girmen gerekir."},
+  p1:{id:1902417,src:304,no:0,head:'Talep #47718 · Online İşlemler girişi: kod gelmiyor',t:142,text:"Müşteri: Şifre yenilemek istiyorum ama kod gelmiyor. Çözüm: Kayıtlı numara eski numaraydı, kimlik doğrulamasıyla güncellendi."},
+  p2:{id:1902533,src:304,no:0,head:'Talep #47790 · Mobil uygulamada oturum kapanıyor',t:121,text:"Müşteri: Uygulama sürekli çıkış yapıyor. Çözüm: Parola değişikliği sonrası eski oturumlar kapanmış, yeniden giriş yapıldı."},
+  p3:{id:1845231,src:301,no:0,head:'E-posta adresini güncelleme',t:69,text:"Bildirim e-postalarının gittiği adresi Online İşlemler > Profil ekranından değiştirebilirsin."},
+  p4:{id:1902611,src:304,no:0,head:'Talep #47841 · Parola değiştirdikten sonra giriş',t:133,text:"Müşteri: Yeni şifremle giremiyorum. Çözüm: Büyük-küçük harf hatası; parola yeniden sıfırlandı."},
+  p5:{id:1902688,src:304,no:0,head:'Talep #47902 · Abone numarası nerede yazar',t:98,text:"Müşteri: Abone numaramı bilmiyorum. Çözüm: Faturanın sağ üst köşesinde yazdığı gösterildi."},
+  p6:{id:1902744,src:304,no:0,head:'Talep #47955 · Hesap kilidi açılmadı',t:117,text:"Müşteri: 30 dakika geçti hâlâ kilitli. Çözüm: Kilit süresi her hatalı denemede yeniden başlıyor; bekleyip tek denemeyle girildi."},
+  s1:{id:1845414,src:301,no:0,head:'TS-501 hata kodu: Wi-Fi kanalı meşgul',t:73,text:"TS-501, modemin seçtiği Wi-Fi kanalının yoğun olduğunu gösterir. Kablosuz ayarlarında kanal seçimini Otomatik yap."},
+  s2:{id:1901877,src:304,no:0,head:'Talep #47388 · Fabrika ayarından sonra internet yok',t:156,text:"Müşteri: Modemi resetledim, internet gitti. Çözüm: PPPoE bilgileri yeniden girildi."},
+  s3:{id:1901902,src:304,no:0,head:'Talep #47460 · PPPoE bilgilerim nerede',t:94,text:"Müşteri: Modem kullanıcı adı istiyor. Çözüm: Online İşlemler > Hizmetlerim'deki PPPoE bilgileri gösterildi."},
+  s4:{id:1901823,src:304,no:0,head:'Talep #47302 · Modemde TS-999 hata kodu',t:138,text:"Müşteri: Modemde TS-999 hata kodu yazıyor, internet yok. Çözüm: PPPoE şifresi yanlış girilmişti, düzeltildi."},
+  n1:{id:1902901,src:304,no:0,head:'Talep #48012 · Yeni adreste kurulum randevusu',t:127,text:"Müşteri: Taşındım, kurulum ne zaman? Çözüm: Nakil başvurusundaki randevu tarihi teyit edildi."},
+  n2:{id:1902955,src:304,no:0,head:'Talep #48077 · Nakil sonrası modem ışıkları',t:112,text:"Müşteri: Yeni evde PON ışığı yanıp sönüyor. Çözüm: Kurulum randevusu tamamlanınca düzeldi."},
+  n3:{id:1845544,src:301,no:0,head:'Hizmet dondurma',t:80,text:"Hizmetini en fazla 6 ay dondurabilirsin; dondurma süresince aylık ücret alınmaz."},
+  n4:{id:1903010,src:304,no:0,head:'Talep #48120 · Taşındım, internet çalışmıyor',t:135,text:"Müşteri: Yeni adreste internet yok. Çözüm: Nakil başvurusu yapılmamıştı; başvuru açıldı."},
+  n5:{id:1903077,src:304,no:0,head:'Talep #48161 · Nakil ücreti ne kadar',t:91,text:"Müşteri: Taşınırken ücret var mı? Çözüm: Nakil ücretinin ilk faturaya yansıdığı anlatıldı."},
+  n6:{id:1903142,src:304,no:0,head:'Talep #48203 · Altyapı yok çıktı',t:118,text:"Müşteri: Yeni adreste altyapı yok dendi. Çözüm: Dondurma seçeneği sunuldu."},
+  f1:{id:1845577,src:301,no:0,head:'Faturanı görüntüleme ve indirme',t:74,text:"Faturalarını Online İşlemler > Faturalarım ekranında görebilir, her birini PDF olarak indirebilirsin. Son 24 ayın faturaları bu ekranda durur."},
+  h1:{id:1845588,src:301,no:0,head:'İnternet hızım düşük: hız testi nasıl yapılır',t:91,text:"Hız testini Wi-Fi yerine modeme Ethernet kablosuyla bağlı bir bilgisayardan yap. Kablolu testte hız tarifendekinin belirgin altındaysa Online İşlemler > Arıza kaydı ekranından kayıt aç."},
+  x1:{id:1845596,src:301,no:0,head:'Aboneliğini iptal etme',t:88,text:"Aboneliğini Online İşlemler > Hizmetlerim > İptal talebi ekranından sonlandırabilirsin. Taahhüdün bitmeden iptal edersen kalan aylara ait kampanya indirimi son faturana yansır; modemi 15 gün içinde kargoyla geri göndermen gerekir."},
+  g1:{id:1845561,src:301,no:0,head:'Kampanya: 12 ay sabit fiyat',t:77,text:"12 ay sabit fiyat kampanyası yeni aboneliklerde geçerlidir."},
+  g2:{id:1903288,src:304,no:0,head:'Talep #48310 · Fatura itirazı',t:129,text:"Müşteri: Bu ay fatura yüksek geldi. Çözüm: Kampanya bitişi anlatıldı."},
+  g3:{id:1845570,src:301,no:0,head:'Otomatik ödeme talimatı',t:72,text:"Faturanı kredi kartından otomatik ödemek için Online İşlemler > Ödemeler ekranını kullan."},
+  g4:{id:1903351,src:304,no:0,head:'Talep #48344 · Statik IP talebi',t:101,text:"Müşteri: Statik IP alabilir miyim? Çözüm: Kurumsal tarifeye geçiş önerildi."},
+};
+for(const [k,c] of Object.entries(CH))c.key=k;
+const ORIG302=Object.values(CH).filter(c=>c.src===302).map(c=>({k:c.key,id:c.id,no:c.no,t:c.t}));
+
+/* Her konu için: vector kolunun Dalga Fiber satırları (yakından uzağa), cosine distance'ları, bütün kb_chunks içindeki
+   sıraları (global: 37 çalışma alanının parçaları arasında kaçıncı en yakın) ve kelime kolunun sonuçları.
+   tsq: PostgreSQL 16'nın plainto_tsquery('turkish', …) çıktısı (Docker'da çalıştırıldı). */
+const TOPICS={
+  parola:{golden:'c1',q:'Şifremi unuttum, online işlemlere giremiyorum',tsq:"'şifre' & 'unut' & 'onl' & 'işlem' & 'giremiyor'",
+    vec:['c1','c3','c2','c4','p1','p2','p3','p4','p5','p6'],dist:[.214,.287,.309,.352,.371,.389,.402,.418,.431,.447],global:[7,19,33,52,58,71,96,104,117,139],
+    foreign:['Şifremi unuttum','Parola sıfırlama','Mobil uygulamaya giriş yapamıyorum','Hesap kilidi','Tek kullanımlık şifre gelmiyor','İnternet şubesi parolası']},
+  ts999:{golden:'c5',q:'TS-999 hata kodu',tsq:"'ts' & '-999' & 'ha' & 'kodu'",
+    vec:['c8','c9','c10','c11','s1','c5','c6','s2','c7','s3'],dist:[.241,.268,.281,.296,.307,.318,.334,.347,.352,.369],global:[3,11,26,37,49,64,70,88,101,123],
+    foreign:['Modem hata kodları','Router ışıkları','Bağlantı yok: ilk kontroller','DSL senkron hatası','Wi-Fi bağlanmıyor','Hata kodu E-51']},
+  nakil:{golden:'c12',q:'Taşınıyorum, internetimi yeni eve nasıl aldırırım?',tsq:"'taşınıyor' & 'internet' & 'ye' & 'ev' & 'aldırır'",
+    vec:['c13','c12','c14','c15','n1','n2','n3','n4','n5','n6'],dist:[.198,.226,.262,.288,.301,.317,.329,.338,.351,.366],global:[31,44,52,67,88,97,109,115,131,142],
+    foreign:['Adres değişikliği','Aboneliğimi yeni adrese taşıma','Yeni adrese nakil','Teslimat adresini değiştirme','Taşınma kampanyası','Sayaç nakli']},
+};
+const OTHERS=[[19,'Kıyı Net'],[12,'Nar Mobil'],[7,'Lodos Enerji'],[23,'Ayva Finans'],[31,'Patika Kargo'],[5,'Kumsal Sigorta'],[14,'Çınar Market'],[27,'Mercan Sağlık'],[9,'Rota Seyahat'],[3,'Defne Eğitim']];
+const SUGG=[TOPICS.parola.q,TOPICS.ts999.q,TOPICS.nakil.q];
+const qnorm=s=>trLow(s).replace(/[^\p{L}\p{N}\s-]/gu,' ').replace(/\s+/g,' ').trim();
+// Önerilen üç soru Docker'da ölçülen sayılarla oynar; diğer her soru genel arama yolundan geçer
+const topicOf=q=>Object.keys(TOPICS).find(k=>qnorm(TOPICS[k].q)===qnorm(q))||null;
+
+/* Genel arama yolu. Vector kolu için kavram sözlüğü: aynı anlamdaki kelimeler (mail/e-posta, değiştir/güncelle,
+   şifre/parola) aynı kavrama düşer; embedding'in yaptığı da budur. Kelime kolu ise sadece köklerin parçada birebir
+   geçmesine bakar. İki kolun farkı böylece her soruda dersteki gibi kalır. */
+const CONCEPTS=[['password',['şifre','parola']],['forgot',['unut','hatırla']],['login',['giriş','girem','giremiyor','girmek','oturum']],
+  ['lock',['kilit']],['otp',['doğrulama','sms']],['email',['mail','eposta','posta']],['change',['değiş','güncelle','yenile']],
+  ['phone',['telefon','numara']],['modem',['modem','router']],['error',['hata','arıza','ts1','ts2','ts5','ts9']],['pppoe',['pppoe','999']],
+  ['light',['ışık','led','los','pon','yanıyor','yanıp']],['red',['kırmızı']],['signal',['sinyal','fiber']],['wifi',['wifi','kablosuz','kanal','ghz']],
+  ['net',['internet','bağlan','bağlantı','çalışmıyor','kopuyor']],['move',['taşın','nakil']],['address',['adres']],
+  ['fee',['ücret','fiyat','tarife','para']],['infra',['altyapı']],['install',['kurul','kurma','kurar','randevu','teknisyen']],
+  ['freeze',['dondur']],['invoice',['fatura']],['pay',['öde','talimat','kart']],['download',['indir','görüntüle','pdf']],
+  ['campaign',['kampanya']],['speed',['hız','yavaş','mbps']],['reset',['reset','fabrika','sıfırla']],['box',['kutu','adaptör']],
+  ['staticip',['statik']],['commit',['taahhüt']],['broken',['bozul','bozuk','arıza','çalışmıyor']],['profile',['profil','hesap','hesab']],['cancel',['iptal']]];
+const HOME=new Set(['ev','eve','evim','evime','evine','evimi','evde','evden']);
+const toks=t=>trLow(t).replace(/(\p{L})-(\p{L}|\d)/gu,'$1$2').split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+function cvec(text,w=1,v={}){for(const t of toks(text)){
+    if(HOME.has(t))v.move=(v.move||0)+w;
+    if(/^ts\d{3}$/.test(t))v['code_'+t]=(v['code_'+t]||0)+2*w;   // her hata kodu ayrı: TS-104 ile TS-999 aynı şey değil
+    for(const [c,ps] of CONCEPTS)if(ps.some(x=>t.startsWith(x)))v[c]=(v[c]||0)+w;}
+  if(/\bkod/.test(trLow(text)))for(const c of ['otp','error'])v[c]=(v[c]||0)+w*.5;
+  return v;}
+const chunkVec=c=>cvec(c.text,1,cvec(c.head,1.5));
+// Soru vektörü: sözlükte karşılığı olmayan anlamlı kelimeler de yarım ağırlıkla sayılır ve parçada aynı kökle
+// geçiyorsa eşleşir ('ayarlarına' → 'Fabrika ayarlarına dönme'). Embedding de kelime örtüşmesini yakalar.
+const IGN=new Set('istiyorum istiyor isterim etmek ederim edebilir yapmak yapabilirim yaparım vermek veririm almak alırım olmak alabilir alabilirim miyim mıyım demek olur lütfen acil bana benim artık hala hâlâ bugün şimdi neden nerde lazım gerekiyor'.split(' '));
+const known=t=>HOME.has(t)||/^ts\d{3}$/.test(t)||CONCEPTS.some(([c,ps])=>ps.some(x=>t.startsWith(x)));
+const content=q=>toks(q).filter(t=>t.length>=3&&!STOP.has(t)&&!IGN.has(t));
+function qvec(q){const v=cvec(q);for(const t of content(q))if(!known(t))v['~'+t.slice(0,4)]=.5;return v;}
+// Bilgi kaynaklarının hiçbir yerinde geçmeyen özel bir kelime ('netflix'): bu konu kaynaklarda yok sayılır
+function outside(q){const kb=Object.values(CH).flatMap(c=>toks(c.head+' '+c.text));
+  // çekimli fiiller (açarım, gitmedi) özel kelime sayılmaz; kaynaklarda başka çekimle geçebilirler
+  const verb=t=>/(ım|im|um|üm|ır|ir|ur|ür|ar|er|mak|mek|yor|dı|di|du|dü|tı|ti|tu|tü|madı|medi)$/.test(t);
+  return content(q).filter(t=>t.length>=4&&!known(t)&&!verb(t)&&!kb.some(x=>x.startsWith(t.slice(0,3))));}
+function cos(a,b){let d=0,na=0,nb=0;for(const k in a){na+=a[k]*a[k];if(b[k])d+=a[k]*b[k];}for(const k in b)nb+=b[k]*b[k];return na&&nb?d/Math.sqrt(na*nb):0;}
+// Benzerlik: sorudaki kavramların ne kadarının parçada geçtiği (ağırlıklı) + cosine. Uzun bir parçanın başka
+// konulara da değinmesi onu sorudan uzaklaştırmasın.
+function rel(qv,c){const cv=chunkVec(c),ct=toks(c.head+' '+c.text),qc={};let tot=0,hit=0;
+  for(const k in qv){tot+=qv[k];if(k[0]==='~'){if(ct.some(t=>t.startsWith(k.slice(1))))hit+=qv[k];}else{qc[k]=qv[k];if(cv[k])hit+=qv[k];}}
+  // soruda olmayan belirli bir hata kodunu anlatan parça genel bir soruya cevap değildir
+  const otherCode=qv.error&&Object.keys(cv).some(k=>k.startsWith('code_')&&!qv[k]);
+  return tot?.75*hit/tot+.25*cos(qc,cv)-(otherCode?.1:0):0;}
+const REL=.45;   // bu benzerliğin altındaki parça soruyu cevaplamaz
+const simOf=(q,k)=>rel(qvec(q),CH[k]);
+// Aranan içeriği seçerken yardım merkezi makalesi, aynı konudaki eski bir destek talebinin önüne geçer;
+// talep soruyu belirgin şekilde daha iyi karşılıyorsa ('abone numaram nerede') talep seçilir
+const pickScore=(q,k)=>simOf(q,k)-(CH[k].src===304?.05:0);
+function generalBase(q){
+  const qv=qvec(q);
+  // talep parçaları konuşma dilinde ve gürültülü: aynı konudaki makale parçasından biraz daha uzak düşer
+  const rows=Object.values(CH).map(c=>({k:c.key,s:rel(qv,c)-(c.src===304?.06:0)})).sort((a,b)=>b.s-a.s||(CH[a.k].src===304)-(CH[b.k].src===304)||CH[a.k].id-CH[b.k].id).slice(0,BRANCH);
+  let g=2+h32(q)%7;const global=rows.map((x,i)=>{if(i)g+=x.s>=REL?5+h32(q+i)%9:22+h32(q+i)%17;return g;});
+  return{keys:rows.map(x=>x.k),dist:rows.map((x,i)=>+(.17+(1-x.s)*.58+i*.004).toFixed(4)),global,
+    foreign:['Sık sorulan sorular','Hesap ayarları','Ödeme yöntemleri','Sözleşme koşulları','Bildirim tercihleri','İletişim bilgileri']};
+}
+function goldenOf(q){let best=null,bs=-1;for(const c of Object.values(CH)){const x=pickScore(q,c.key);if(x>bs+1e-9){bs=x;best=c.key;}}
+  return best&&simOf(q,best)>=REL&&!outside(q).length?best:null;}
+// ts_rank_cd(tsv, query), normalizasyon 0: PostgreSQL tsrank.c'deki Cover/calc_rank_cd'nin AND sorgusu için aynısı.
+// Ağırlık verilmemiş konumlar D (0,1) sayılır; her cover 0,1 / (1 + aradaki gürültü kelime sayısı) katkı verir.
+function rankCd(d,lx){
+  const m=new Map();for(const x of lx)for(const p of d[x]||[]){if(!m.has(p))m.set(p,new Set());m.get(p).add(x);}
+  const doc=[...m.entries()].sort((a,b)=>a[0]-b[0]),covers=s=>lx.every(x=>s.has(x));
+  let W=0,start=0;
+  while(start<doc.length){
+    let seen=new Set(),end=-1;
+    for(let i=start;i<doc.length;i++){doc[i][1].forEach(x=>seen.add(x));if(covers(seen)){end=i;break;}}
+    if(end<0)break;
+    seen=new Set();let begin=-1;
+    for(let i=end;i>=start;i--){doc[i][1].forEach(x=>seen.add(x));if(covers(seen)){begin=i;break;}}
+    if(begin<0){start++;continue;}
+    let noise=(doc[end][0]-doc[begin][0])-(end-begin);if(noise<0)noise=Math.floor((end-begin)/2);
+    W+=.1/(1+noise);start=begin+1;
+  }
+  return W;}
+// kelime kolu: tsv @@ plainto_tsquery (sorgunun bütün kökleri parçada) ve ts_rank_cd'ye göre sıralama
+function keywordHits(q){const lx=tsqLex(q);if(!lx.length)return[];
+  return Object.values(CH).filter(c=>lx.every(x=>(LEXDOC[c.key]||{})[x])).map(c=>({k:c.key,score:rankCd(LEXDOC[c.key],lx)}))
+    .sort((a,b)=>b.score-a.score||CH[a.k].id-CH[b.k].id).slice(0,BRANCH);}
+// Bilinen sorgular için gerçek çıktı; diğerleri için turkish sözlüğüne yaklaşık bir gösterim (durak kelimeler atılır, ekler kırpılır)
+const STOP=new Set('acaba ama ancak bazı belki ben beni bana bir biri birkaç biz bu bunu çok çünkü da daha de diye en gibi hem hep her hiç için ile ise ki kim mı mi mu mü mısın misin nasıl ne neden nerede nereden nereye niye o sanki şey siz şu tüm ve veya ya yani var yok'.split(' '));
+const SUF=['ıyorum','iyorum','uyorum','üyorum','ebilirim','abilirim','ebilir','abilir','ları','leri','ımı','imi','umu','ümü','dan','den','nın','nin','mek','mak','lar','ler','me','ma','sı','si','su','sü','ım','im','um','üm','ı','i','u','ü','a','e'];
+const VOW=/[aeıioöuü]/;
+// kaba kök: sadece anlam benzerliği simülasyonu ve sözlükte olmayan kelimeler için
+const approxStem=w=>{for(const x of SUF)if(w.length-x.length>=3&&w.endsWith(x)&&(x.length>1||!VOW.test(w[w.length-2])))return w.slice(0,-x.length);return w;};
+const tsqWords=q=>toks(q).filter(w=>!STOP.has(w)).map(approxStem);
+
+/* Kelime kolu PostgreSQL'in kendi çıktısıyla çalışır (Docker, PostgreSQL 16, 'turkish' yapılandırması):
+   LEXDOC: her parçanın to_tsvector('turkish', heading || ' ' || content) sonucu (kök → konumlar).
+   LEXW: kelimelerin plainto_tsquery('turkish', kelime) sonucu; boş liste = durak kelime.
+   Sözlükte olmayan bir kelime gelirse kaba köke düşülür. */
+const LEXDOC={"c1":{"10":[25],"abone":[15],"bağlantı":[13],"bir":[28],"cep":[20],"dakik":[26],"dok":[14],"doğrula":[29],"ekran":[10],"gelir":[31],"geçerli":[27],"giriş":[9],"hatırlamıyor":[8],"işlem":[2,6],"kayıtlı":[19],"kodu":[30],"numara":[16,22],"onl":[1,5],"parola":[3,7,11],"sıfırla":[4],"telefo":[21],"telefon":[24],"unut":[12],"yaz":[23]},"c2":{"8":[16],"bir":[20],"değiş":[24],"girdik":[6],"ik":[10],"içermel":[22],"işlem":[2],"kapanır":[29],"karakter":[17],"kodu":[5],"mobil":[25],"olmal":[18],"onl":[1],"otur":[27],"parol":[13],"parola":[3,9,23],"raka":[21],"sonra":[7],"sıfırla":[4],"uygulama":[26],"yaz":[12],"ye":[8]},"c3":{"30":[14],"5":[8],"arka":[6,7],"dakik":[15],"deneyebilir":[20],"dol":[18],"e":[5],"giril":[12],"hatal":[10],"hesap":[1,13],"işlem":[4],"kilitle":[2],"kilitlenir":[16],"onl":[3],"parol":[11],"parola":[23],"sür":[17],"sıfırlayabilir":[24],"tekrar":[19]},"c4":{"bağla":[26],"bilgi":[22],"cep":[9],"değişti":[13],"doğrula":[1,4],"eski":[15],"gelmiyor":[3],"gider":[17],"gönderilir":[11],"güncellemek":[19],"hizmet":[24],"kayıtlı":[8],"kimlik":[21],"kod":[14],"kodu":[2,5],"müşter":[23],"numara":[12,16,18],"sms":[6],"telefon":[10]},"c5":{"-999":[2,10],"ad":[17],"ayar":[26],"bağlanır":[13],"başarıs":[8],"bilgi":[30],"doğrulamas":[7],"döndük":[27],"edilmedik":[21],"fabrik":[25],"gönderdik":[14],"görülür":[32],"gösterir":[22],"ha":[3],"interne":[12],"kabul":[20],"kimlik":[6],"kodu":[4],"kullanıç":[16],"mode":[11,24],"pppoe":[5,15],"silin":[31],"sonra":[28],"ts":[1,9],"çoğunluk":[23],"şifre":[19]},"c6":{"-999":[2],"192.168.1.1":[11],"ad":[22],"arayüz":[10],"aç":[12],"başarıs":[8],"başlat":[29],"doğrulamas":[7],"ekran":[15],"gir":[25],"ha":[3],"hizmet":[18],"internet":[13],"işlem":[17],"kaydedip":[26],"kimlik":[6],"kodu":[4],"kullanıç":[21],"mode":[9,27],"onl":[16],"pppoe":[5,14],"ts":[1],"yaza":[20],"yeni":[28],"şifre":[24]},"c7":{"-999":[5,7],"ad":[19],"arayüz":[16],"doğrula":[12],"gir":[23],"ha":[1,8],"hatas":[13],"kimlik":[11],"kodu":[2,9],"kullanıç":[18],"mode":[15],"pppoe":[10,17],"tablos":[3],"ts":[4,6],"yeni":[22],"çöz":[14],"şifre":[21]},"c8":{"1xx":[18],"30":[38],"5xx":[24],"arayüz":[9],"aç":[42],"baş":[15],"başlaya":[6],"bir":[33],"fi":[28],"fiber":[20],"görüne":[10],"görür":[35],"ha":[2,11],"ilgil":[30],"kapatıp":[37],"kod":[7,34],"kodu":[3,12,19,25],"liste":[31],"mode":[1,8,36],"olmaya":[32],"sani":[39],"sinyal":[21],"sonra":[40],"ts":[4,13,17,23],"ts-1xx":[16],"ts-5xx":[22],"wi":[27],"wi-fi":[26],"yeni":[41]},"c9":{"anla":[4],"bağlantıs":[11],"demek":[13],"fiber":[10,18],"gelir":[5],"gör":[25],"hasar":[24],"kablo":[19],"kuruluyor":[12],"kırmız":[16],"los":[14],"mode":[1],"olabilir":[26],"pon":[6],"sönüyor":[9],"yanıp":[8],"yanıyor":[17],"yer":[20],"çık":[21],"ışık":[2,7,15]},"c10":{"30":[10],"arız":[23],"aç":[15],"bak":[26],"bağla":[2],"bek":[12],"bun":[5],"bölge":[16],"dur":[24],"ekran":[25],"et":[7],"internet":[1],"işlem":[22],"kapatıp":[9],"kontrol":[6],"mode":[8],"olmadık":[20],"olup":[19],"onl":[21],"planlı":[17],"sani":[11],"yeni":[14],"yok":[3],"çalışma":[18],"ö":[4]},"c11":{"-104":[2,9],"aldık":[13],"bükülmedik":[20],"et":[26],"fiber":[5,11,18],"gösterir":[17],"ha":[3],"hatt":[12],"kablo":[19],"kodu":[4],"kontrol":[25],"mode":[10],"olduk":[16],"oturduk":[24],"priz":[22],"sinyal":[6,14],"tam":[23],"ts":[1,8],"zayıf":[7,15]},"c12":{"adre":[13,24],"altyapıs":[25],"başvuru":[21],"başvurus":[2,4],"belir":[20],"bildirilir":[31],"edilir":[27],"hizmet":[8],"i":[10],"işlem":[7],"kontrol":[26],"kurul":[16],"nakil":[1,3,9],"onl":[6],"randevu":[18],"seç":[11],"sms":[29],"sonra":[22],"sonuç":[28],"tarih":[19],"yaz":[14],"ye":[12,23]},"c13":{"aldırabilir":[9],"aynı":[20],"bozmaz":[16],"denir":[13],"ev":[8],"fatura":[25],"fiyat":[19],"gö":[4],"ilk":[24],"internet":[2,6],"işle":[11],"kalır":[21],"nakil":[12,14,22],"taahhüdü":[15],"tarife":[17],"taşınır":[1,5],"yan":[3],"yansır":[26],"ye":[7],"ücret":[23]},"c14":{"adre":[6],"adres":[2],"altyap":[3,14,23],"altyapı":[8],"bina":[20],"değil":[25],"dondurma":[28],"ekran":[16],"fiber":[7],"görebilir":[22],"il":[17],"ilçe":[18],"iptal":[31],"işlem":[13],"nakil":[26],"numara":[21],"olmadık":[11],"olup":[10],"onl":[12],"seçenek":[32],"sorgul":[15],"sorgula":[4],"sunulur":[33],"uygu":[9,24],"ye":[1,5],"yer":[27]},"c15":{"31":[2],"adres":[5,11],"bak":[14],"fiber":[12],"kadar":[18],"kurma":[6],"kurul":[15],"mode":[3,9],"normaldir":[24],"pon":[19],"priz":[13],"randevus":[16],"s":[1],"sonra":[8],"sönebilir":[22],"tamamlana":[17],"taşındık":[7],"yanıp":[21],"ye":[4,10],"ışık":[20]},"k1":{"1":[12],"12":[9],"4":[2],"5":[13],"adaptör":[11],"bir":[19],"bulunur":[22],"dalga":[6],"ethernet":[20],"fiber":[15],"içerik":[4],"kablo":[17],"kablos":[21],"kut":[3],"kutu":[5],"m":[14],"mode":[8],"patch":[16],"s":[1],"t5":[7],"v":[10]},"k2":{"3":[23],"9":[2],"arkas":[18],"aç":[27],"bağla":[6],"bükme":[28],"cm":[24],"dar":[26],"den":[25],"diğer":[15],"duvar":[12],"fiber":[4,7,13],"giriş":[20],"kablo":[9,22],"mode":[3,17],"patch":[8],"pon":[19],"priz":[5,14],"s":[1],"tak":[21],"uç":[11,16],"yeşil":[10]},"k3":{"18":[2],"2":[17],"4":[18],"5":[21],"ad":[7,24],"ak":[23],"arayüz":[12],"ayar":[15],"ayrı":[27,28],"ağ":[6],"değiştirebilir":[29],"değiştirme":[10],"ekran":[16],"fi":[5],"ghz":[19,22],"kablos":[13],"mode":[11],"s":[1],"temel":[14],"wi":[4],"wi-fi":[3],"şifre":[9,26]},"k4":{"10":[9],"44":[2],"ad":[18],"arka":[6],"ayar":[4,14],"basıl":[11],"dön":[15],"dönme":[5],"düğme":[8],"fabrik":[3,13],"gerekir":[25],"girme":[24],"kullanıç":[17],"pppoe":[16],"reset":[7],"s":[1],"sani":[10],"silinir":[22],"tut":[12],"yeni":[23],"şifres":[20]},"p1":{"47718":[2],"doğrulama":[21],"eski":[18],"gelmiyor":[7,14],"giriş":[5],"güncelle":[22],"istiyor":[11],"işlem":[4],"kayıtlı":[16],"kimlik":[20],"kod":[6,13],"müşter":[8],"numar":[17,19],"onl":[3],"talep":[1],"yenilemek":[10],"çöz":[15],"şifre":[9]},"p2":{"47790":[2],"değişiklik":[14],"eski":[16],"giriş":[20],"kapa":[18],"kapanıyor":[6],"mobil":[3],"müşter":[7],"otur":[5],"oturum":[17],"parol":[13],"sonras":[15],"sürekli":[9],"talep":[1],"uygula":[8],"uygulama":[4],"yapıl":[21],"yapıyor":[11],"yeni":[19],"çöz":[12],"çıkış":[10]},"p3":{"adre":[4],"adres":[11],"bildir":[6],"değiştirebilir":[16],"e":[2,8],"e-pos":[1],"e-posta":[7],"ekran":[15],"gittik":[10],"güncelle":[5],"işlem":[13],"onl":[12],"pos":[3],"posta":[9],"profil":[14]},"p4":{"47841":[2],"büyük":[13],"büyük-küçük":[12],"değiştirdik":[4],"giremiyor":[10],"giriş":[6],"harf":[15],"hatas":[16],"küçük":[14],"müşter":[7],"parol":[3,17],"sonra":[5],"sıfırla":[19],"talep":[1],"ye":[8],"yeni":[18],"çöz":[11],"şifre":[9]},"p5":{"47902":[2],"abone":[3,8],"bilmiyor":[10],"fatura":[12],"gösteril":[17],"köşe":[15],"müşter":[7],"numara":[9],"numaras":[4],"sağ":[13],"talep":[1],"yazar":[6],"yazdık":[16],"çöz":[11],"üst":[14]},"p6":{"30":[7],"47955":[2],"açılmadı":[5],"başlıyor":[19],"bekleyip":[20],"dakik":[8],"deneme":[17,22],"geç":[9],"giril":[23],"hatal":[16],"hesap":[3],"hâlâ":[10],"kilidi":[4],"kilit":[13],"kilitli":[11],"müşter":[6],"süres":[14],"talep":[1],"tek":[21],"yeni":[18],"çöz":[12]},"s1":{"-501":[2,11],"ayar":[22],"fi":[7,16],"gösterir":[20],"ha":[3],"kablos":[21],"kanal":[8,17,23],"kodu":[4],"meşgul":[9],"mode":[12],"olduk":[19],"otomatik":[25],"seçim":[24],"seçtik":[13],"ts":[1,10],"wi":[6,15],"wi-fi":[5,14],"yap":[26],"yok":[18]},"s2":{"47388":[2],"ayar":[4],"bilgi":[15],"fabrik":[3],"giril":[17],"git":[12],"internet":[6,11],"mode":[9],"müşter":[8],"pppoe":[14],"resetledi":[10],"sonra":[5],"talep":[1],"yeni":[16],"yok":[7],"çöz":[13]},"s3":{"47460":[2],"ad":[9],"bilgi":[4,17],"dek":[15],"gösteril":[18],"hizmet":[14],"istiyor":[10],"işlem":[13],"kullanıç":[8],"mode":[7],"müşter":[6],"onl":[12],"pppoe":[3,16],"talep":[1],"çöz":[11]},"s4":{"-999":[5,11],"47302":[2],"düzeltil":[22],"girilmiş":[21],"ha":[6,12],"internet":[15],"kodu":[7,13],"mode":[3,9],"müşter":[8],"pppoe":[18],"talep":[1],"ts":[4,10],"yanlış":[20],"yazıyor":[14],"yok":[16],"çöz":[17],"şifres":[19]},"n1":{"48012":[2],"adres":[4],"başvurus":[14],"edil":[18],"kurul":[5,9],"müşter":[7],"nakil":[13],"randevu":[15],"randevus":[6],"talep":[1],"tarih":[16],"taş":[8],"teyit":[17],"ye":[3],"zama":[11],"çöz":[12]},"n2":{"48077":[2],"düzel":[18],"ev":[9],"kurul":[15],"mode":[5],"müşter":[7],"nakil":[3],"pon":[10],"randevus":[16],"sonras":[4],"sönüyor":[13],"talep":[1],"tamamlan":[17],"yanıp":[12],"ye":[8],"çöz":[14],"ışık":[6,11]},"n3":{"6":[6],"alınmaz":[13],"ay":[7],"aylık":[11],"dondurabilir":[8],"dondurma":[2,9],"faz":[5],"hizmet":[1,3],"süre":[10],"ücret":[12]},"n4":{"48120":[2],"adres":[8],"açıl":[16],"başvur":[15],"başvurus":[13],"internet":[4,9],"müşter":[6],"nakil":[12],"talep":[1],"taş":[3],"yapılmamış":[14],"ye":[7],"yok":[10],"çalışmıyor":[5],"çöz":[11]},"n5":{"48161":[2],"anlatıl":[18],"fatura":[16],"ilk":[15],"kadar":[6],"müşter":[7],"nakil":[3,13],"talep":[1],"taşınır":[8],"var":[10],"yansıdık":[17],"çöz":[12],"ücret":[4,9,14]},"n6":{"48203":[2],"adres":[8],"altyap":[3,9],"de":[11],"dondurma":[13],"müşter":[6],"seçenek":[14],"sunul":[15],"talep":[1],"ye":[7],"yok":[4,10],"çöz":[12],"çık":[5]},"f1":{"24":[17],"ay":[18],"bir":[12],"durur":[22],"ekra":[21],"ekran":[9],"fatura":[1,5,8,19],"görebilir":[10],"görüntüle":[2],"indirebilir":[15],"indirme":[4],"işlem":[7],"olarak":[14],"onl":[6],"pdf":[13],"son":[16]},"h1":{"alt":[26],"arız":[29],"aç":[33],"bağlı":[17],"belirgi":[25],"bilgisayar":[19],"bir":[18],"düşük":[3],"ekran":[31],"ethernet":[15],"fi":[12],"hız":[2,4,8,23],"internet":[1],"işlem":[28],"ka":[30],"kablo":[16],"kablol":[21],"kayıt":[32],"mode":[14],"onl":[27],"tarifendek":[24],"tes":[5],"test":[9,22],"wi":[11],"wi-fi":[10],"yap":[20],"yapılır":[7],"yer":[13]},"x1":{"15":[25],"abonelik":[1,4],"ait":[18],"ay":[17],"bitme":[13],"eder":[15],"ekran":[10],"etme":[3],"fatura":[22],"ger":[29],"gerekir":[31],"gönderme":[30],"gün":[26],"hizmet":[7],"indir":[20],"iptal":[2,8,14],"iç":[27],"işlem":[6],"kala":[16],"kampanya":[19],"kargo":[28],"mode":[24],"onl":[5],"son":[21],"sonlandırabilir":[11],"taahhüdü":[12],"talep":[9],"yansır":[23]},"g1":{"12":[2,6],"abonelik":[12],"ay":[3,7],"fiyat":[5,9],"geçerli":[13],"kampanya":[1],"kampanyas":[10],"sabit":[4,8],"ye":[11]},"g2":{"48310":[2],"anlatıl":[14],"ay":[7],"bitiş":[13],"fatur":[3,8],"gel":[10],"itiraz":[4],"kampanya":[12],"müşter":[5],"talep":[1],"yük":[9],"çöz":[11]},"g3":{"ekran":[13],"fatura":[4],"işlem":[11],"kart":[6],"kredi":[5],"kulla":[14],"onl":[10],"otomatik":[1,7],"talimat":[3],"öde":[2],"ödeme":[12],"ödemek":[8]},"g4":{"48344":[2],"alabilir":[9],"geçiş":[14],"ip":[4,8],"kurumsal":[12],"mi":[10],"müşter":[6],"statik":[3,7],"talep":[1,5],"tarife":[13],"çöz":[11],"öneril":[15]},"k5":{"2":[30],"22":[2],"4":[31],"5":[17],"6":[6,14],"80":[22],"802.11":[15],"ak":[19,33],"artırır":[26],"ax":[16],"açık":[34],"cihaz":[28],"eski":[27],"fi":[5,13],"genişlik":[9,21],"ghz":[18,32],"hız":[25],"kanal":[8,20],"mhz":[23],"s":[1],"tut":[35],"wi":[4,12],"wi-fi":[3,11],"yapmak":[24],"ye":[10]}};
+const LEXW={"adres":["adres"],"fiber":["fiber"],"e-postalarının":["e-posta","e","posta"],"basılı":["basıl"],"yoksa":["yok"],"indirebilirsin":["indirebilir"],"testte":["test"],"görmüş":["gör"],"18":["18"],"içeriği":["içerik"],"2":["2"],"kapatıp":["kapatıp"],"mobil":["mobil"],"dakika":["dakik"],"bağlanırken":["bağlanır"],"altyapı":["altyap"],"ts-5xx":["ts-5xx","ts","5xx"],"aboneliklerde":["abonelik"],"profil":["profil"],"indirebilirim":["indirebilir"],"cihazlar":["cihaz"],"ama":[],"tam":["tam"],"modem":["mode"],"hesap":["hesap"],"statik":["statik"],"ücretinin":["ücret"],"ilk":["ilk"],"31":["31"],"başlat":["başlat"],"gün":["gün"],"bağlantısına":["bağlantı"],"hizmetimi":["hizmet"],"geçti":["geç"],"değiştiyse":["değişti"],"adresimi":["adres"],"hızı":["hız"],"dalga":["dalga"],"kimlik":["kimlik"],"yapıyor":["yapıyor"],"10":["10"],"bağlama":["bağla"],"gönderdiği":["gönderdik"],"cep":["cep"],"bina":["bina"],"edilir":["edilir"],"başarısız":["başarıs"],"bozuldu":["bozul"],"girildi":["giril"],"geldi":["gel"],"ne":[],"olmadığına":["olmadık"],"adını":["ad"],"47460":["47460"],"vermek":["vermek"],"uygun":["uygu"],"yüksek":["yük"],"sinyali":["sinyal"],"açılmadı":["açılmadı"],"kartından":["kart"],"tarifendekinin":["tarifendek"],"başvurudan":["başvuru"],"yazıyor":["yazıyor"],"tablosu":["tablos"],"müşteri":["müşter"],"hızım":["hız"],"tamamlanınca":["tamamlan"],"durur":["durur"],"bilgileri":["bilgi"],"hizmetleri":["hizmet"],"ödeme":["öde"],"kayıt":["kayıt"],"sıfırlayabilirsin":["sıfırlayabilir"],"fiyatın":["fiyat"],"bilgilerinle":["bilgi"],"ekranından":["ekran"],"6":["6"],"oturum":["otur"],"bozuk":["bozuk"],"yansıdığı":["yansıdık"],"kilit":["kilit"],"olup":["olup"],"ts-501":["ts","-501"],"başvurusundaki":["başvurus"],"yazdığı":["yazdık"],"ücreti":["ücret"],"belirgin":["belirgi"],"48310":["48310"],"adresini":["adre"],"değiştiririm":["değiştirir"],"yapılmamıştı":["yapılmamış"],"pdf":["pdf"],"var":["var"],"miyim":["mi"],"ekranındaki":["ekran"],"ayın":["ay"],"gir":["gir"],"fabrika":["fabrik"],"48077":["48077"],"s":["s"],"aboneliğimi":["abonelik"],"abonelik":["abonelik"],"bilgilerim":["bilgi"],"kurma":["kurma"],"her":[],"mı":[],"internetim":["internet"],"temel":["temel"],"aç":["aç"],"talimatı":["talimat"],"etmek":["etmek"],"sabit":["sabit"],"iptal":["iptal"],"kalan":["kala"],"şifremle":["şifre"],"olmadığını":["olmadık"],"görülür":["görülür"],"değişince":["değiş"],"ekranını":["ekran"],"kanalı":["kanal"],"kredi":["kredi"],"modemi":["mode"],"ağını":["ak"],"yok":["yok"],"ayarından":["ayar"],"başvuru":["başvur"],"teyit":["teyit"],"demektir":["demek"],"altındaysa":["alt"],"alınmaz":["alınmaz"],"sonrası":["sonras"],"görebilirsin":["görebilir"],"çalışma":["çalışma"],"ışıkları":["ışık"],"da":[],"aboneliğini":["abonelik"],"hizmet":["hizmet"],"arka":["arka"],"geri":["ger"],"taşınırken":["taşınır"],"değişikliği":["değişiklik"],"çıkış":["çıkış"],"son":["son"],"resetledim":["resetledi"],"8":["8"],"nereden":["nere"],"dolunca":["dol"],"dondurmak":["dondurmak"],"bozmaz":["bozmaz"],"karakter":["karakter"],"uygulamadaki":["uygulama"],"kapanmış":["kapa"],"randevusu":["randevus"],"bitişi":["bitiş"],"ayarlarında":["ayar"],"kodlar":["kod"],"tekrar":["tekrar"],"numaranı":["numara"],"açıldı":["açıl"],"anlatıldı":["anlatıl"],"sıfırlandı":["sıfırla"],"çıktı":["çık"],"düğmesine":["düğme"],"9":["9"],"4":["4"],"kablosuz":["kablos"],"altyapısı":["altyapıs"],"kablolu":["kablol"],"adresi":["adres"],"birini":["bir"],"istiyor":["istiyor"],"yaz":["yaz"],"modemde":["mode"],"değiştirme":["değiştirme"],"ayrı":["ayrı"],"adreste":["adres"],"kilitlendi":["kilitle"],"nerede":[],"ayarlarını":["ayar"],"kontrol":["kontrol"],"arayüzünü":["arayüz"],"yanıyor":["yanıyor"],"yenilemek":["yenilemek"],"faturaya":["fatura"],"arayüzünde":["arayüz"],"çok":[],"şifre":["şifre"],"gönderilir":["gönderilir"],"köşesinde":["köşe"],"den":["den"],"kutuda":["kutu"],"bölgende":["bölge"],"faturanı":["fatura"],"ve":[],"itirazı":["itiraz"],"netflix":["netflix"],"yerinden":["yer"],"i":["i"],"şifresini":["şifre"],"edildi":["edil"],"aldığı":["aldık"],"düşük":["düşük"],"dendi":["de"],"numaraya":["numara"],"bilmiyorum":["bilmiyor"],"faturanın":["fatura"],"aldırırım":["aldırır"],"unuttum":["unut"],"seçenekleri":["seçenek"],"dönme":["dönme"],"hata":["ha"],"prizine":["priz"],"önerildi":["öneril"],"sonuç":["sonuç"],"faturamı":["fatura"],"3":["3"],"bilgisayardan":["bilgisayar"],"saniye":["sani"],"tak":["tak"],"talebi":["talep"],"47302":["47302"],"yeniden":["yeni"],"girilince":["giril"],"patch":["patch"],"hesabım":["hesap"],"47790":["47790"],"ışık":["ışık"],"normaldir":["normaldir"],"dönmek":["dönmek"],"dondurabilirsin":["dondurabilir"],"48012":["48012"],"ghz":["ghz"],"kurulum":["kurul"],"kuruluyor":["kuruluyor"],"güncellendi":["güncelle"],"yanlış":["yanlış"],"denemede":["deneme"],"etme":["etme"],"nasıl":[],"arkaya":["arka"],"işlemler":["işlem"],"yanında":["yan"],"istiyorum":["istiyor"],"olduğunu":["olduk"],"uygulama":["uygula"],"ağlarının":["ak"],"bulunur":["bulunur"],"192":["192"],"öderim":["öder"],"durumu":["dur"],"47718":["47718"],"bitiyor":["bitiyor"],"içinde":["iç"],"kutu":["kut"],"evine":["ev"],"ayarlarına":["ayar"],"80":["80"],"ya":[],"eve":["ev"],"ts-104":["ts","-104"],"hatırlamıyorum":["hatırlamıyor"],"tarihi":["tarih"],"48120":["48120"],"m":["m"],"bilgiler":["bilgi"],"açık":["açık"],"geçerlidir":["geçerli"],"numaraydı":["numar"],"44":["44"],"802":["802"],"sinyal":["sinyal"],"değilse":["değil"],"açıyla":["aç"],"de":[],"47955":["47955"],"iki":["ik"],"internetimi":["internet"],"ait":["ait"],"adresinin":["adre"],"sinyaliyle":["sinyal"],"sunuldu":["sunul"],"kayıtlı":["kayıtlı"],"kaydedip":["kaydedip"],"ödemeler":["ödeme"],"seçtiği":["seçtik"],"ıp":["ıp"],"harf":["harf"],"eski":["eski"],"diğer":["diğer"],"güncellemek":["güncellemek"],"sönebilir":["sönebilir"],"otomatik":["otomatik"],"tek":["tek"],"olmalı":["olmal"],"hatırlamıyorsan":["hatırlamıyor"],"numara":["numar"],"hizmetlerim":["hizmet"],"faturalarım":["fatura"],"sorgula":["sorgul"],"bildirilir":["bildirilir"],"internetini":["internet"],"şifresinin":["şifre"],"kez":[],"olarak":["olarak"],"giriş":["giriş"],"parolan":["parola"],"sağ":["sağ"],"talep":["talep"],"şifremi":["şifre"],"bağlı":["bağlı"],"açarım":["açar"],"girişi":["giriş"],"eposta":["epos"],"zaman":["zama"],"kabul":["kabul"],"uygulamada":["uygulama"],"başlıyor":["başlıyor"],"dokun":["dok"],"çoğunlukla":["çoğunluk"],"kargoyla":["kargo"],"olabilir":["olabilir"],"adresteki":["adres"],"tarifen":["tarife"],"kurumsal":["kurumsal"],"47388":["47388"],"ayarlar":["ayar"],"bükme":["bükme"],"telefonu":["telefo"],"kampanyası":["kampanyas"],"yapmak":["yapmak"],"gösterir":["gösterir"],"götür":["gö"],"ekranında":["ekran"],"belirle":["belir"],"edilmediğini":["edilmedik"],"kanal":["kanal"],"online":["onl"],"doğrulamasıyla":["doğrulama"],"bağlantısı":["bağlantıs"],"kod":["kod"],"değiştirmek":["değiştirmek"],"testi":["tes"],"e-posta":["e-pos","e","pos"],"gelmiyor":["gelmiyor"],"fazla":["faz"],"rakam":["raka"],"bağla":["bak"],"düzeldi":["düzel"],"reset":["reset"],"internet":["internet"],"arkasındaki":["arkas"],"22":["22"],"çalışmıyor":["çalışmıyor"],"oturumlar":["oturum"],"önce":["ö"],"ayarları":["ayar"],"hattından":["hatt"],"en":[],"modemin":["mode"],"girilmişti":["girilmiş"],"sorgulama":["sorgula"],"kablosu":["kablos"],"48344":["48344"],"taahhüt":["taahhüt"],"wifi":["wif"],"göndermen":["gönderme"],"taahhüdün":["taahhüdü"],"indir":["in"],"süresi":["süres"],"sms":["sms"],"bitmeden":["bitme"],"taahhüdünü":["taahhüdü"],"görürsen":["görür"],"nakil":["nakil"],"bunları":["bun"],"başlayan":["başlaya"],"taşınıyorum":["taşınıyor"],"görünen":["görüne"],"tarifeye":["tarife"],"et":["et"],"geçiş":["geçiş"],"randevu":["randevu"],"faturalarını":["fatura"],"silinir":["silinir"],"gitti":["git"],"girdikten":["girdik"],"şifresi":["şifres"],"şifreyi":["şifre"],"planlı":["planlı"],"kalır":["kalır"],"merhaba":["merhap"],"işleme":["işle"],"kilitli":["kilitli"],"t5":["t5"],"kullanıcı":["kullanıç"],"silinince":["silin"],"anlama":["anla"],"ip":["ip"],"indirimi":["indir"],"dar":["dar"],"5":["5"],"mail":["mail"],"bir":["bir"],"kapanır":["kapanır"],"kapanıyor":["kapanıyor"],"çıkmış":["çık"],"kabloyu":["kablo"],"numaran":["numara"],"girmen":["girme"],"olmayan":["olmaya"],"yap":["yap"],"wi-fi":["wi-fi","wi","fi"],"deki":["dek"],"gittiği":["gittik"],"indirme":["indirme"],"işlemlere":["işlem"],"kodları":["kodu"],"24":["24"],"taşındım":["taş"],"ile":[],"ts-1xx":["ts-1xx","ts","1xx"],"seç":["seç"],"kablonun":["kablo"],"başlar":["baş"],"hız":["hız"],"kampanya":["kampanya"],"seçeneği":["seçenek"],"sönüyorsa":["sönüyor"],"zayıf":["zayıf"],"evde":["ev"],"bükülmediğini":["bükülmedik"],"dönerim":["döner"],"gitmedi":["gitmedi"],"ağında":["ak"],"adaptör":["adaptör"],"başvurusu":["başvurus"],"fatura":["fatur"],"duvardaki":["duvar"],"kodu":["kodu"],"sıfırlamak":["sıfırlamak"],"ev":["ev"],"ilçe":["ilçe"],"tut":["tut"],"telefon":["telefo"],"süre":["sür"],"sıfırlama":["sıfırla"],"adı":["ad"],"sunulur":["sunulur"],"faturana":["fatura"],"48161":["48161"],"güncelleme":["güncelle"],"bekle":["bek"],"edersen":["eder"],"yazar":["yazar"],"v":["v"],"süresince":["süre"],"47902":["47902"],"üst":["üst"],"kullan":["kulla"],"yavaş":["yavaş"],"ağ":["ağ"],"parolanı":["parola"],"oturduğunu":["oturduk"],"sönüyor":["sönüyor"],"sonra":["sonra"],"değiştir":["değiş"],"11ax":["11ax"],"kadar":["kadar"],"testini":["test"],"gider":["gider"],"arkadaki":["arka"],"12":["12"],"yerine":["yer"],"168":["168"],"parola":["parol"],"hatalı":["hatal"],"dondurma":["dondurma"],"15":["15"],"yoğun":["yok"],"mhz":["mhz"],"meşgul":["meşgul"],"telefonuna":["telefon"],"içermeli":["içermel"],"düzeltildi":["düzeltil"],"aylık":["aylık"],"taşınma":["taşınma"],"bak":["bak"],"prize":["priz"],"il":["il"],"yanıp":["yanıp"],"abone":["abone"],"bildirim":["bildir"],"genişliğini":["genişlik"],"yansır":["yansır"],"ekranda":["ekra"],"bağlantın":["bağla"],"gösterildi":["gösteril"],"alabilir":["alabilir"],"döndükten":["döndük"],"ts-999":["ts","-999"],"yeşil":["yeşil"],"bağlan":["bağla"],"aynı":["aynı"],"ilgilidir":["ilgil"],"sonlandırabilirsin":["sonlandırabilir"],"giremiyorum":["giremiyor"],"gerekir":["gerekir"],"faturayı":["fatura"],"ücret":["ücret"],"ucunu":["uç"],"değiştirdikten":["değiştirdik"],"pon":["pon"],"numarasıyla":["numara"],"los":["los"],"ödemek":["ödemek"],"altyapıya":["altyapı"],"doğrulaması":["doğrulamas"],"numaramı":["numara"],"artırır":["artırır"],"denir":["denir"],"yazan":["yaza"],"doğrulama":["doğrula"],"dönünce":["dön"],"az":[],"yanıyorsa":["yanıyor"],"kırmızı":["kırmız"],"ayar":["ayar"],"kablo":["kablo"],"taahhüdüm":["taahhüdü"],"genişliği":["genişlik"],"aldırabilirsin":["aldırabilir"],"oturumların":["otur"],"ekranına":["ekran"],"arıza":["arız"],"kilidi":["kilidi"],"kaydı":["ka"],"büyük-küçük":["büyük-küçük","büyük","küçük"],"yapıldı":["yapıl"],"girişine":["giriş"],"sinyalin":["sinyal"],"30":["30"],"47841":["47841"],"listede":["liste"],"kilitlenir":["kilitlenir"],"faturaları":["fatura"],"yapılır":["yapılır"],"kanalının":["kanal"],"parolamı":["parola"],"ethernet":["ethernet"],"tamamlanana":["tamamlana"],"değiştirebilirsin":["değiştirebilir"],"adresin":["adre"],"internete":["interne"],"demek":["demek"],"görebilir":["görebilir"],"yeni":["ye"],"hâlâ":["hâlâ"],"gelir":["gelir"],"sürekli":["sürekli"],"bu":[],"cm":["cm"],"hatası":["hatas"],"çözüm":["çöz"],"kablosuyla":["kablo"],"ışığı":["ışık"],"numarası":["numaras"],"1":["1"],"modemim":["mode"],"denemeyle":["deneme"],"için":[],"fiyat":["fiyat"],"48203":["48203"],"hasar":["hasar"],"aylara":["ay"],"bekleyip":["bekleyip"],"e":["e"],"seçimini":["seçim"],"hizmetini":["hizmet"],"geçerli":["geçerli"],"ay":["ay"],"deneyebilir":["deneyebilir"],"modeme":["mode"],"görüntüleme":["görüntüle"],"taşındıktan":["taşındık"],"ts":["ts"],"pppoe":["pppoe"]};
+const PGSTOP=new Set('acaba ama aslında az bazı belki biri birkaç birşey biz bu çok çünkü da daha de defa diye eğer en gibi hem hep hepsi her hiç için ile ise kez ki kim mı mu mü nasıl ne neden nerde nerede nereye niçin niye o sanki şey siz şu tüm ve veya ya yani'.split(' '));   // turkish.stop
+const qtoks=q=>trLow(q).split(/[^\p{L}\p{N}-]+/u).map(t=>t.replace(/^-+|-+$/g,'')).filter(Boolean);
+function tsqLex(q){const out=[];for(const t of qtoks(q)){const lx=t in LEXW?LEXW[t]:PGSTOP.has(t)?[]:[approxStem(t)];
+    for(const x of lx)if(!out.includes(x))out.push(x);}return out;}
+function tsqOf(q){const l=tsqLex(q);return l.length?l.map(w=>`'${w}'`).join(' & '):"''";}
+
+/* ================= ARAMA ÇEKİRDEĞİ (yan etkisiz) =================
+   semantic kolu: HNSW adayları → WHERE tenant_id = 42 → LIMIT 10. post-filter: en fazla ef_search aday.
+   iterative: filtreden geçen satır 10'a ulaşana ya da max_scan_tuples'a kadar devam. keyword kolu: GIN + tenant filtresi.
+   Sonra mod: keyword/vector tek liste, hybrid RRF; sonuç sayfasına ilk K=10. */
+function vectorBase(q,wrong){
+  const tp=topicOf(q),T=TOPICS[tp];
+  if(wrong){ // farklı modelin vector'ü: uzaklıklar ~0,95, sıra rastgele; çalışma alanı satırları ortalama her 32 adayda bir
+    const pool=['g1','g2','g3','g4','k1','k3','n3','p5','s1','k2'];const keys=[...pool].sort((a,b)=>h32(q+a)-h32(q+b));
+    return{keys,dist:keys.map((k,i)=>.941+i*.003),global:keys.map((k,i)=>14+i*31+(h32(q+i)%9)),foreign:['Kampanya koşulları','Sözleşme feshi','Kargo takibi','Poliçe yenileme','Randevu iptali','Kredi kartı aidatı']};
+  }
+  if(T)return{keys:T.vec,dist:T.dist,global:T.global,foreign:T.foreign};
+  return generalBase(q);
+}
+function distAt(base,g){ // global sıradaki adayın uzaklığı: çalışma alanı satırlarının uzaklıkları arasında doğrusal
+  const P=[[1,base.dist[0]-.034],...base.global.map((x,i)=>[x,base.dist[i]])];
+  for(let i=1;i<P.length;i++)if(g<=P[i][0]){const [g0,d0]=P[i-1],[g1,d1]=P[i];return d0+(d1-d0)*(g-g0)/Math.max(1,g1-g0);}
+  const [ga,da]=P[P.length-2],[gb,db]=P[P.length-1];return db+(db-da)/Math.max(1,gb-ga)*(g-gb);
+}
+function retrieve(q,o){
+  const tp=topicOf(q),T=TOPICS[tp];
+  // keyword modunda embedding çağrılmaz: sorgu modelinin yanlış olması bu aramayı etkilemez
+  const r={q,topic:tp,mode:o.mode,filter:o.filter,ef:o.ef,wrong:o.wrong&&o.mode!=='keyword',golden:T?T.golden:goldenOf(q),tsq:tsqOf(q)};
+  // kelime kolu
+  if(o.mode!=='vector'){
+    // RANK(): eşit puanlı parçalar aynı sırayı alır, SQL'deki gibi
+    r.kw=keywordHits(q).map((x,i,a)=>({k:x.k,rank:a.findIndex(y=>y.score===x.score)+1,score:+x.score.toFixed(4)}));
+  }
+  // vector kolu
+  if(o.mode!=='keyword'){
+    const base=vectorBase(q,o.wrong);r.base=base;
+    const rows=base.keys.map((k,i)=>({k,dist:base.dist[i],g:base.global[i]}));
+    const batches=[];let upto=0;
+    do{upto+=o.ef;batches.push({upto,passed:rows.filter(x=>x.g<=upto).length});}
+    while(o.filter==='iter'&&batches[batches.length-1].passed<BRANCH&&upto<MAX_SCAN);
+    let passed=rows.filter(x=>x.g<=upto).slice(0,BRANCH);
+    r.scanned=upto;
+    // LIMIT dolunca executor index'ten satır istemeyi bırakır; post-filter'da da ef_search'ün sonuna gidilmez
+    if(passed.length>=BRANCH){r.scanned=passed[BRANCH-1].g;batches[batches.length-1].upto=r.scanned;}
+    r.batches=batches;r.vec=passed.map((x,i,a)=>({...x,rank:a.findIndex(y=>y.dist===x.dist)+1}));
+    const tg=new Map(rows.map(x=>[x.g,x]));
+    r.cands=Array.from({length:r.scanned},(_,i)=>{const g=i+1,own=tg.get(g);
+      if(own)return{g,own:true,k:own.k,dist:own.dist};
+      const t=OTHERS[h32(q+'#t'+g)%OTHERS.length];
+      return{g,own:false,tenant:t[0],tname:t[1],head:base.foreign[h32(q+'#h'+g)%base.foreign.length],id:2000000+h32(q+'#i'+g)%800000,dist:distAt(base,g)};});
+    r.removed=r.scanned-r.vec.length;
+  }
+  // birleştirme
+  if(o.mode==='keyword')r.fused=(r.kw||[]).map(x=>({k:x.k,kr:x.rank,score:x.score}));
+  else if(o.mode==='vector')r.fused=r.vec.map(x=>({k:x.k,vr:x.rank,dist:x.dist}));
+  else{const m=new Map();
+    (r.vec||[]).forEach(x=>m.set(x.k,{k:x.k,vr:x.rank,dist:x.dist}));
+    (r.kw||[]).forEach(x=>{const e=m.get(x.k)||{k:x.k};e.kr=x.rank;m.set(x.k,e);});
+    r.fused=[...m.values()].map(e=>({...e,score:(e.kr?1/(RRF_K+e.kr):0)+(e.vr?1/(RRF_K+e.vr):0)}))
+      .sort((a,b)=>b.score-a.score||(a.vr||99)-(b.vr||99)||CH[a.k].id-CH[b.k].id);}   // SQL: ORDER BY score DESC, s.rank NULLS LAST, id
+  r.hits=r.fused.slice(0,K).map(x=>x.k);
+  // değerlendirme: aranan içerik (soruyu cevaplayan parçalar) listede kaçıncı sırada; semantic kolu LIMIT'i doldurdu mu
+  r.relevant=relevantOf(q,tp);
+  const ri=r.hits.findIndex(k=>r.relevant.includes(k));r.rank=ri>=0?ri+1:null;
+  r.short=!!(r.vec&&r.vec.length<BRANCH);
+  r.state=!r.relevant.length?'KAYNAKTA YOK':r.short?'EKSİK':r.rank===1?'İSABETLİ':r.rank?'ZAYIF':'KAÇIRDI';
+  // Docker ölçümü (412.860 satır, pgvector 0.8.7): post-filter ~7,6 ms, iterative 330 adayda ~44,6 ms → aday başına ~0,12 ms
+  r.sqlMs=o.mode==='keyword'?+(1.8+Math.random()*.6).toFixed(1):+(4+r.scanned*.12+(o.mode==='hybrid'?1.4:0)).toFixed(1);
+  return r;
+}
+
+/* Aranan içerik: önerilen aramalar için elle etiketlenmiş parçalar; diğerleri için en iyi eşleşen parça ve aynı
+   makalenin diğer parçaları. Sağlık çipi bu kümenin sonuç listesindeki sırasına bakar. */
+const RELSET={parola:['c1','c2'],ts999:['c5','c6','c7'],nakil:['c12','c13','c14']};
+function relevantOf(q,tp){if(tp)return RELSET[tp];const g=goldenOf(q);if(!g)return[];
+  const best=Math.max(...Object.values(CH).map(c=>simOf(q,c.key)));
+  return [g,...Object.values(CH).filter(c=>c.key!==g&&(simOf(q,c.key)>=Math.max(REL,best-.1)||(c.head===CH[g].head&&c.src===CH[g].src))).map(c=>c.key)];}
+// Sonuç kartındaki alıntı: kelime kolunun bulduğu parçada, kökü sorgunun kökleriyle eşleşen kelimeler işaretlenir (ts_headline gibi)
+// Sıfır sonuçlu kelime aramasında aranan parçada sorgunun hangi kökleri geçiyor, hangileri geçmiyor
+function lexGap(q,k){const d=LEXDOC[k]||{},lx=tsqLex(q);return{have:lx.filter(x=>d[x]),miss:lx.filter(x=>!d[x])};}
+const qlist=a=>a.map(x=>`'${x}'`).join(', ');
+function gapText(q,k){const g=lexGap(q,k);if(!g.miss.length)return '';
+  return `"${CH[k].head}" parçasında ${g.have.length?`${qlist(g.have)} geçiyor ama `:''}${qlist(g.miss)} ${g.miss.length>1?'kökleri':'kökü'} geçmiyor`;}
+function markTerms(q,t,byKw){t=esc(t);if(!byKw)return t;const lx=new Set(tsqLex(q));
+  return t.replace(/[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*/gu,w=>(LEXW[trLow(w)]||[]).some(x=>lx.has(x))?`<mark>${w}</mark>`:w);}
+function snippet(q,k,byKw){const c=CH[k];return markTerms(q,c.text.length>190?c.text.slice(0,c.text.lastIndexOf(' ',188))+' …':c.text,byKw);}
+
+/* ================= DURUM ================= */
+const store={page:'arama',arg:null,hl:null,q:'',input:'',result:null,searching:false,uploading:null,
+  // arama kayıtları: dünkü satırlar post-filter dönemine ait (az ya da sıfır sonuç)
+  log:[
+    {t:'dün 16:20',ch:'Yardım merkezi',q:'taahhüt bitiş tarihi',n:0,top:null},
+    {t:'dün 18:42',ch:'Yardım merkezi',q:'Taşınıyorum, internetimi nasıl taşırım',n:1,top:'Taşınırken internetini yanında götür'},
+    {t:'dün 21:17',ch:'Yardım merkezi',q:'Yeni evde internet yok',n:2,top:'İnternet bağlantın yoksa önce bunları kontrol et'},
+    {t:'09:12',ch:'Temsilci paneli',q:'fatura indirme',n:10,top:'Faturanı görüntüleme ve indirme'},
+    {t:'09:26',ch:'Yardım merkezi',q:'Hız testim 100 Mbps altında çıkıyor',n:10,top:'İnternet hızım düşük: hız testi nasıl yapılır'},
+    {t:'10:05',ch:'Temsilci paneli',q:'LOS ışığı kırmızı',n:10,top:'Modem ışıkları ne anlama gelir'}]};
+function freshSys(){return{sql:[],net:[],logs:[],last:null,ing:null,lastKind:null,netSeq:0,plans:0,chunkTotal:TOTAL,txTotal:null,mutations:[]}}
+const sys=Object.assign({mode:'hybrid',filter:'iter',ef:40,wrong:false,stepMode:true},freshSys());
+let busy=false,selNet=null,convSeq=0,gen=0;
+const marks={sql:0,net:null};
+
+/* ================= KONSOL: yardımcılar ================= */
+const TABS=['net','db','rank','idx','log','code'];
+const unseen={net:0,db:0,idx:0,log:0};
+let tab='net';
+function ping(t){if(t!==tab&&t in unseen)unseen[t]++;updBadges();}
+function updBadges(){
+  $('c-net').textContent=sys.net.length;$('c-db').textContent=sys.sql.length;$('c-idx').textContent=sys.plans;$('c-log').textContent=sys.logs.length;
+  document.querySelectorAll('.tabs [data-tab]').forEach(b=>b.classList.toggle('ping',!!unseen[b.dataset.tab]));
+}
+function showTab(t){tab=t;if(t in unseen)unseen[t]=0;
+  document.querySelectorAll('.tabs [data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  TABS.forEach(k=>$('p-'+k).hidden=k!==t);updBadges();}
+document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)showTab(b.dataset.tab);});
+
+function log(level,svc,cls,msg){
+  sys.logs.push({t:clock(),level,svc,cls,msg});if(sys.logs.length>300)sys.logs.shift();
+  const el=document.createElement('div');el.className='lg new';
+  el.innerHTML=`<time>${clock()}</time><span class="lv ${level}">${level}</span><span class="m"><span class="svc">[${esc(svc)}]</span> <span class="cls">${esc(cls)}</span> : ${esc(msg)}</span>`;
+  const box=$('logs');box.appendChild(el);while(box.children.length>300)box.firstChild.remove();
+  const pane=$('p-log');pane.scrollTop=pane.scrollHeight;ping('log');
+}
+function sql(dbn,who,text,ms,rows){sys.sql.unshift({t:clock(),db:dbn,who,text,ms,rows});if(sys.sql.length>60)sys.sql.pop();marks.sql=1;renderDb();ping('db');}
+function netStart(method,path,service,req,headers,host){const e={id:++sys.netSeq,method,path,service,req,host:host||'https://app.yanit.io',headers:headers||{},status:null,ms:null,res:null,t:clock()};
+  sys.net.push(e);if(sys.net.length>140)sys.net.shift();marks.net=e.id;renderNet();ping('net');return e;}
+function netEnd(e,status,res,ms,resHeaders){e.status=status;e.res=res;e.ms=ms;e.resHeaders=resHeaders||{};marks.net=e.id;renderNet();}
+function fly(id,color,reverse,pid){
+  const p=$(id),c=$(pid||'pkt');if(!p)return;const Lg=p.getTotalLength();const t0=performance.now(),dur=520;
+  c.setAttribute('fill',color||'#5aa2ff');
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  (function f(t){let k=Math.min(1,(t-t0)/dur);const pt=p.getPointAtLength(Lg*(reverse?1-k:k));
+    c.setAttribute('cx',pt.x);c.setAttribute('cy',pt.y);c.setAttribute('opacity',k<1?1:0);if(k<1)requestAnimationFrame(f);})(t0);
+}
+function hot(nodes,tbs){
+  document.querySelectorAll('.map .nd, .map .tb').forEach(n=>n.classList.remove('hot'));
+  (nodes||[]).forEach(n=>$(n)&&$(n).classList.add('hot'));(tbs||[]).forEach(n=>$(n)&&$(n).classList.add('hot'));
+}
+
+/* ================= ADIM MEKANİZMASI ================= */
+const queue=[];
+function narrate(s){$('n-no').textContent=s.label;$('n-title').textContent=s.title;$('n-desc').textContent=s.desc;
+  hot(s.nodes,s.tb);if(s.tab&&$('follow').checked)showTab(s.tab);}
+// sıfırla'dan sonra eski akış olduğu yerde durur: beklediği promise hiç çözülmez
+const halt=()=>new Promise(()=>{});
+const pause=(flow,ms)=>wait(ms).then(()=>flow.gen===gen?undefined:halt());
+function step(flow,o){
+  if(flow.gen!==gen)return halt();
+  flow.n++;const s=Object.assign({label:`${flow.name} · ${flow.n}`},o);
+  if(!sys.stepMode){narrate(s);return pause(flow,o.ms||950);}
+  return new Promise(res=>{queue.push({s,res});if(queue.length===1){narrate(s);$('next').disabled=false;$('next').focus({preventScroll:true});}});
+}
+function advance(){const q=queue.shift();if(q)q.res();
+  if(queue[0])narrate(queue[0].s);else{$('next').disabled=true;setTimeout(idleCheck,60);}}
+function nextHint(){
+  if(sys.ing&&sys.ing.done&&sys.lastKind==='ing')return "Arama ekranına dönüp 'fabrika ayarlarına nasıl dönerim' diye ara: sonuç v3.2'nin parçasından gelecek. Ya da sorgu modelini ada-002 yapıp sessiz hatayı dene.";
+  const L=sys.last;
+  if(!L||!L.done)return 'Soldaki sık arananlardan birine tıkla ya da kendi aramanı yaz.';
+  const r=L.r;
+  if(r.wrong)return "Sorgu modelini 3-small'a geri al ve aynı aramayı tekrarla. Hiçbir yerde hata görünmedi: bu serviste sorgu modelini parçaların embedding_model kolonuyla karşılaştıran bir kontrol yok.";
+  if(r.topic==='parola'&&r.mode==='keyword')return "Hybrid'e geçip aynı aramayı tekrarla: vector kolu 'parola sıfırlama' parçasını anlamından bulacak.";
+  if(r.topic==='ts999'&&r.mode==='vector'&&r.rank!==1)return "Hybrid'e geçip 'TS-999 hata kodu'nu tekrar ara: kelime kolu kodu birebir bulacak.";
+  if(r.short)return r.ef===40?"Filtreyi iterative'e alıp aynı aramayı tekrarla; ya da önce ef_search'ü 100'e çıkar.":`ef_search'ü 100'e çıkarmak yetmedi: ${r.scanned} adaydan ${ek(r.vec.length)} filtreden geçti, LIMIT ${BRANCH} dolmadı. Satırlar rastgele dağılsaydı ef_search × %3,1 ≈ ${(r.ef*.031).toFixed(1).replace('.',',')} satır beklenirdi${r.vec.length>r.ef*.031?`; bu soruda daha fazla, çünkü ${TENANT_NAME}'in parçaları kendi müşterisinin sorusuna diğer satırlardan daha yakın duruyor`:''}. Filtre seçici kaldıkça ef_search'ü büyütmek LIMIT'i garanti etmez. iterative'e geçip aynı aramayı tekrarla.`;
+  if(r.topic==='parola')return "Ders 1'in problemi: Keyword'e geçip aynı aramayı yap. Sonra 'TS-999 hata kodu'nu Vector modunda dene.";
+  if(r.topic==='ts999')return "Ders 2'ye geç: filtreyi post-filter yapıp 'Taşınıyorum, internetimi yeni eve nasıl aldırırım?' diye ara.";
+  if(r.topic==='nakil')return "Bilgi kaynakları sayfasında modem kılavuzunun yeni sürümünü yükle ve yazma anında ne olduğunu izle.";
+  if(r.state==='KAYNAKTA YOK')return 'Bu konu bilgi kaynaklarında yok; listedeki sonuçlar sadece en yakın parçalar. Sık arananların her biri bir problemi gösteriyor.';
+  if(r.mode==='keyword'&&r.rank!==1)return "Aynı aramayı Hybrid'de yap: vector kolu parçayı kelimeleri tutmasa da anlamından bulacak.";
+  if(r.mode!=='keyword')return "Aynı aramayı Keyword modunda yap: aranan kelimeler parçadakilerle birebir örtüşmüyorsa kelime araması bulamaz.";
+  return "Aynı aramayı Hybrid'de yap ve iki listenin RRF ile nasıl birleştiğine Sıralama sekmesinde bak.";
+}
+function idleCheck(){if(!busy&&!queue.length){hot([]);const ran=sys.last||sys.ing;   // henüz akış yoksa ayar değişikliği "bitti" demesin
+  $('n-no').textContent=ran?'BİTTİ':'HAZIR';$('n-title').textContent=ran?'Akış tamamlandı':'Soldaki bilgi bankasında bir arama yap';$('n-desc').textContent=nextHint();}}
+$('next').addEventListener('click',advance);
+document.addEventListener('keydown',e=>{if((e.key==='ArrowRight'||e.key===' ')&&queue.length&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();advance();}});
+function flushQueue(){while(queue.length)queue.shift().res();$('next').disabled=true;}
+
+/* ================= SORGU METİNLERİ ================= */
+// sorgu metinleri aramanın yapıldığı andaki ayarlarla yazılır; ayar sonradan değişse de aynı kalır
+const searchSets=r=>`SET LOCAL hnsw.ef_search = ${r.ef};${r.filter==='iter'?'\nSET LOCAL hnsw.iterative_scan = relaxed_order;':''}`;
+const SEM=v=>`semantic AS MATERIALIZED (
+  SELECT id, embedding <=> '${v}'::vector AS distance
+  FROM kb_chunks
+  WHERE tenant_id = ${TENANT}
+  ORDER BY embedding <=> '${v}'::vector
+  LIMIT ${BRANCH}
+)`;
+const KWQ=q=>`keyword AS (
+  SELECT id, RANK() OVER (ORDER BY ts_rank_cd(tsv, query) DESC) AS rank
+  FROM kb_chunks, plainto_tsquery('turkish', '${q.replace(/'/g,"''")}') query
+  WHERE tenant_id = ${TENANT} AND tsv @@ query
+  ORDER BY ts_rank_cd(tsv, query) DESC
+  LIMIT ${BRANCH}
+)`;
+function searchSql(r){const q=r.q,mode=r.mode,v=vecStr(qnorm(q)+(r.wrong?'#ada':''));
+  if(mode==='keyword')return `WITH ${KWQ(q)}\nSELECT c.id, c.source_id, c.heading, c.content\nFROM keyword k JOIN kb_chunks c USING (id)\nORDER BY k.rank\nLIMIT ${K};`;
+  if(mode==='vector')return `BEGIN;\n${searchSets(r)}\nWITH ${SEM(v)}\nSELECT c.id, c.source_id, c.heading, c.content, s.distance\nFROM semantic s JOIN kb_chunks c USING (id)\nORDER BY s.distance\nLIMIT ${K};\nCOMMIT;`;
+  return `BEGIN;\n${searchSets(r)}\nWITH ${SEM(v)},\nsemantic_ranked AS (\n  SELECT id, RANK() OVER (ORDER BY distance) AS rank FROM semantic\n),\n${KWQ(q)},\nfused AS (\n  SELECT COALESCE(s.id, k.id) AS id,\n         COALESCE(1.0 / (${RRF_K} + s.rank), 0.0) +\n         COALESCE(1.0 / (${RRF_K} + k.rank), 0.0) AS score,\n         s.rank AS semantic_rank\n  FROM semantic_ranked s\n  FULL OUTER JOIN keyword k ON s.id = k.id\n  ORDER BY score DESC, s.rank NULLS LAST, id\n  LIMIT ${K}\n)\nSELECT c.id, c.source_id, c.heading, c.content, f.score\nFROM fused f JOIN kb_chunks c USING (id)\nORDER BY f.score DESC, f.semantic_rank NULLS LAST, f.id;\nCOMMIT;`;
+}
+const explainSql=r=>{const v=vecStr(qnorm(r.q)+(r.wrong?'#ada':''));
+  return `BEGIN;\n${searchSets(r)}\nEXPLAIN (ANALYZE, BUFFERS, COSTS OFF)\nSELECT id, embedding <=> '${v}'::vector AS distance\nFROM kb_chunks\nWHERE tenant_id = ${TENANT}\nORDER BY embedding <=> '${v}'::vector\nLIMIT ${BRANCH};\nCOMMIT;`;};
+function explainText(L){
+  const r=L.r,v=vecStr(qnorm(L.q)+(r.wrong?'#ada':''));const rows=r.vec.length,ms=r.sqlMs-(r.mode==='hybrid'?1.4:0);
+  const hit=r.scanned*9+280,rd=r.scanned*37;
+  return `Limit (actual time=${(ms*.82).toFixed(3)}..${ms.toFixed(3)} rows=<span class="${rows<BRANCH?'bad':'good'}">${rows}</span> loops=1)
+  Buffers: shared hit=${hit} read=${rd}
+  ->  <span class="good">Index Scan using kb_chunks_embedding_idx on kb_chunks</span> (actual time=${(ms*.81).toFixed(3)}..${(ms-.02).toFixed(3)} rows=${rows} loops=1)
+        Order By: (embedding &lt;=&gt; '${v}'::vector)
+        Filter: (tenant_id = ${TENANT})
+        <span class="${rows<BRANCH?'bad':'wt'}">Rows Removed by Filter: ${r.removed}</span>
+        Buffers: shared hit=${hit} read=${rd}
+Planning Time: 0.191 ms
+Execution Time: ${(ms+.04).toFixed(3)} ms`;
+}
+
+/* ================= BACKEND SİMÜLASYONU: arama ================= */
+const hitJson=(r,k,i)=>{const f=r.fused.find(x=>x.k===k);
+  return{rank:i+1,chunkId:CH[k].id,sourceId:CH[k].src,heading:CH[k].head,
+    ...(f.score!=null?{score:+f.score.toFixed(4)}:{distance:+f.dist.toFixed(4)}),matchedBy:[f.vr&&'semantic',f.kr&&'keyword'].filter(Boolean)};};
+async function search(q){
+  q=q.trim();if(!q||busy)return;
+  busy=true;sys.lastKind='search';const flow={name:'ARAMA',n:0,gen};
+  const r=retrieve(q,{mode:sys.mode,filter:sys.filter,ef:sys.ef,wrong:sys.wrong});
+  Object.assign(store,{q,input:q,result:null,searching:true});go('arama');
+  sys.last={q,r,stage:0,batch:0,done:false,shown:{kw:false,vec:false,fused:false}};renderAll();
+  const e=netStart('GET',`/api/v1/workspaces/${TENANT}/search?q=${encodeURIComponent(q)}&limit=${K}`,'search-api',null,{'Accept':'application/json','Authorization':'Bearer eyJhbGciOiJSUzI1NiIs…','X-Request-Id':'req_'+h32(q+Date.now()).toString(16).slice(0,10)});
+  fly('e-web');
+  log('INFO','search-api','c.y.search.api.SearchController',`GET /api/v1/workspaces/${TENANT}/search q="${q}" mode=${r.mode} limit=${K}`);
+  await step(flow,{title:'Arama isteği search-api\'ye ulaştı',desc:`Temsilci "${q}" yazdı. Servis ${TENANT_NAME}'in ${nTr(tenantRows())} parçası arasından en alakalı ${K} tanesini döndürecek; bu parçalar kb_chunks tablosunda başka çalışma alanlarının parçalarıyla birlikte duruyor.`,nodes:['n-web','n-api'],tab:'net'});
+
+  let ems=0;
+  if(r.mode!=='keyword'){
+    const model=r.wrong?WRONG:MODEL;
+    const ee=netStart('POST','/v1/embeddings','embedding-api',{model,input:q,encoding_format:'float'},{'Content-Type':'application/json','Authorization':'Bearer sk-proj-…'},'https://api.openai.com');
+    fly('e-emb');await pause(flow,140);ems=rnd(96,168);
+    netEnd(ee,200,{object:'list',data:[{object:'embedding',index:0,embedding:[...vecStr(qnorm(q)+(r.wrong?'#ada':'')).slice(1,-2).split(',').map(Number),`… ${DIMS-3} sayı daha`]}],model,usage:{prompt_tokens:Math.ceil(q.length/3.1),total_tokens:Math.ceil(q.length/3.1)}},ems,{'openai-model':model,'openai-processing-ms':String(ems-rnd(38,58))});
+    fly('e-emb','#43b883',true);
+    log('INFO','search-api','c.y.search.retrieval.QueryEmbedder',`Embedded query with ${model} (${DIMS} dims) in ${ems} ms`);
+    await step(flow,r.wrong?{title:`Arama metni ${WRONG} ile embed edildi`,desc:`Boyut yine ${DIMS}, PostgreSQL hata vermeyecek. Ama kb_chunks'taki vector'ler ${MODEL} ile üretildi; iki farklı modelin vector'leri aynı uzayda değildir ve karşılaştırılamaz.`,nodes:['n-api','n-emb'],tab:'net'}
+      :{title:`Arama metni ${DIMS} sayılık bir vector'e çevrildi`,desc:`Parçalar yazma anında ${MODEL} ile embed edilip kb_chunks.embedding kolonuna yazılmıştı. Arama metni de okuma anında aynı modelle embed edilir; bu çağrı arama süresine eklenir.`,nodes:['n-api','n-emb'],tab:'net'});
+  }
+  fly('e-pg');
+  sql('kb-db','search-api',searchSql(r),r.sqlMs,r.hits.length);
+  if(r.mode!=='vector'){
+    sys.last.shown.kw=true;renderRank();
+    const n=r.kw.length;
+    const first=r.mode==='hybrid'?' Hybrid\'de bu liste, vector kolunun listesiyle aynı SQL\'in sonunda FULL OUTER JOIN ile birleşecek.':'';
+    await step(flow,{title:n?`Kelime kolu: ${n} parça kökleri birebir içeriyor`:'Kelime kolu: sorgunun köklerinin hepsini içeren parça yok',
+      desc:(r.topic==='ts999'&&n?`plainto_tsquery kökleri AND ile bağladı: ${r.tsq}. PostgreSQL'in ayrıştırıcısı (parser) TS-999'u 'ts' ve '-999' (işaretli sayı) diye ikiye böldü, Türkçe sözlük 'hata'yı 'ha'ya indirdi; yine de kodu birebir içeren ${n} parça bulundu.`
+        :n?`plainto_tsquery: ${r.tsq}. GIN index'i bu kökleri içeren satırları buldu, tenant_id = ${TENANT} filtresi ${TENANT_NAME}'inkileri bıraktı; ts_rank_cd ile sıralandı.`
+        :`plainto_tsquery kökleri AND ile bağladı: ${r.tsq}. Hepsi geçmeli. ${r.topic==='parola'?"Yardım merkezi 'parola' diyor, temsilci müşterinin kelimesiyle 'şifre' yazdı; 'giremiyor' kökü de makalede geçmiyor. Bütün kökleri birlikte içeren parça olmadığı için GIN index'i hiçbir satır döndürmedi.":r.golden&&gapText(q,r.golden)?`Aranan ${gapText(q,r.golden)}. Bütün kökleri birlikte içeren parça olmadığı için GIN index'i hiçbir satır döndürmedi.`:'Bu kökleri birlikte içeren parça yok; GIN index\'i hiçbir satır döndürmedi.'}`)+first,
+      nodes:['n-pg'],tb:['tb-gin'],tab:'rank'});
+  }
+  if(r.mode!=='keyword'){
+    sys.plans++;
+    const nb=r.batches.length;
+    for(let b=0;b<nb;b++){
+      if(b>=3&&b<nb-1)continue;   // uzun taramalarda ara grupları tek adımda özetle
+      sys.last.stage=1;sys.last.batch=b;sys.last.showFilter=false;renderCand();renderIdx();fly('e-idx');
+      const B=r.batches[b];
+      if(b===0){
+        await step(flow,{title:`HNSW index'i yaklaşık en yakın ${r.ef} adayı üretti`,desc:`hnsw.ef_search = ${r.ef}: arama elinde en fazla ${r.ef} aday tutar. Index çalışma alanını bilmez; adaylar ${TENANTS} çalışma alanının ${nTr(TOTAL)} parçası arasından, sadece uzaklığa göre seçildi.`,nodes:['n-pg','n-scan'],tb:['tb-hnsw'],tab:'idx'});
+        sys.last.showFilter=true;renderCand();renderIdx();fly('e-flt');
+        await step(flow,{title:`WHERE tenant_id = ${TENANT} adayların ${ek(B.upto-B.passed,true)} eledi: ${B.passed} satır kaldı`,
+          desc:B.passed>=BRANCH?(r.filter==='post'?`Filtre index taramasından sonra uygulanıyor. Satırlar rastgele dağılsaydı ${r.ef} adayda ~${(r.ef*.031).toFixed(1).replace('.',',')} satır beklenirdi; bu soruda ${TENANT_NAME}'in parçaları soruya diğer satırlardan daha yakın duruyor ve ${BRANCH}. satır ${B.upto}. adayda geldi. LIMIT ${BRANCH} doldu, tarama orada durdu. iterative_scan kapalıyken de sonuç tam, ama bu soruya bağlı: ef_search daha küçük ya da filtre daha seçici olsaydı eksik dönebilirdi.`
+            :`Filtre index taramasından sonra uygulanıyor; ${B.upto} adaydan ${ek(BRANCH)} ${TENANT_NAME}'in. LIMIT ${BRANCH} ilk ${r.ef} adayın içinde doldu; iterative_scan'in taramayı sürdürmesine gerek kalmadı.`)
+            :r.filter==='post'?`Filtre index taramasından sonra uygulanıyor. ${TENANT_NAME} parçaların ${pct(3.1)}'i; satırlar rastgele dağılsaydı ${B.upto} adayda ~${(B.upto*.031).toFixed(1).replace('.',',')} satır beklenirdi, bu soruda ${B.upto} adaydan ${ek(B.passed)} bu çalışma alanından. iterative_scan kapalı olduğu için index yeni aday üretmiyor; semantic kolu LIMIT ${BRANCH} yerine ${B.passed} satırla bitecek ve hata vermeyecek.`
+            :`Filtre index taramasından sonra uygulanıyor; ${B.upto} adaydan ${ek(B.passed)} ${TENANT_NAME}'in. LIMIT ${BRANCH}'a yetmiyor; iterative_scan açık olduğu için index aramayı bitirmeyecek.`,
+          nodes:['n-scan','n-flt'],tab:'idx'});
+      }else{
+        sys.last.showFilter=true;renderCand();renderIdx();fly('e-flt');
+        const last=b===nb-1;
+        await step(flow,last&&B.passed>=BRANCH?{title:`Filtreden geçen satır ${BRANCH}'a ulaştı, tarama ${B.upto}. adayda durdu`,desc:`iterative_scan grafikte kaldığı yerden devam etti. ${B.upto} aday tarandı, ${ek(B.upto-BRANCH)} filtreye takıldı. Üst sınır hnsw.max_scan_tuples = ${nTr(MAX_SCAN)}; filtre çok daha seçici olsaydı bu sınıra gelinip yine eksik sonuç dönebilirdi.`,nodes:['n-scan','n-flt','n-lim'],tab:'idx'}
+          :{title:`Index aramaya devam etti: ${B.upto} aday, ${B.passed} satır geçti`,desc:b===2&&nb>4?`LIMIT ${BRANCH}'a hâlâ yetmiyor. Sonraki ${nb-4} grup tek adımda geçilecek.`:`LIMIT ${BRANCH}'a hâlâ yetmiyor; index yeni adaylar üretiyor, baştan başlamıyor.`,nodes:['n-scan','n-flt'],tab:'idx'});
+      }
+    }
+    sys.last.stage=2;sys.last.shown.vec=true;renderCand();renderIdx();renderRank();renderMap();
+  }
+  // birleştirme (sadece hybrid)
+  sys.last.shown.fused=true;renderRank();
+  if(r.mode==='hybrid'){
+    fly('e-lv');fly('e-kw',null,false,'pkt2');
+    const g=r.fused.find(x=>x.k===r.golden);
+    const both=r.fused.filter(x=>x.kr&&x.vr);
+    await step(flow,{title:'RRF iki listeyi sıraya göre birleştirdi',
+      desc:'Aynı SQL\'in son kısmı: FULL OUTER JOIN iki listeyi id üzerinden eşleştirdi, ORDER BY score RRF puanına göre sıraladı, LIMIT '+K+' kesti. '+(!r.kw.length?`Kelime listesi boş; birleşik liste vector listesinin aynısı. Bu aramada sonuçları vector kolu getirdi.`
+        :g&&g.kr&&g.vr?`Puan = 1/(60 + sıra). "${CH[g.k].head}" kelime listesinde ${g.kr}., vector listesinde ${g.vr}.: 1/${60+g.kr} + 1/${60+g.vr} ≈ ${fmt(g.score).replace('.',',')}. Sadece vector listesinde 1. olan parça 1/61 ≈ 0,0164 alıyor.`
+        :`Puan = 1/(60 + sıra). İki listede de bulunan ${both.length} parça öne geçti; puanlar farklı ölçekte olduğu için toplanan değer ts_rank ya da distance değil, sıra.`),
+      nodes:['n-lim','n-rrf'],tb:['tb-gin'],tab:'rank'});
+  }
+  // sonuç satırları PostgreSQL'den search-api'ye, oradan tarayıcıya döner
+  fly('e-pg','#43b883',true);
+  const n=r.hits.length,total=ems+Math.round(r.sqlMs)+rnd(8,18);
+  sql('kb-db','search-api',`-- parça id'si kaynağın yeni sürümünde değişir: ilk sonucun başlığı kayıtta saklanır\nINSERT INTO search_events\n  (tenant_id, query, mode, result_count, top_chunk_id, top_heading, latency_ms)\nVALUES (${TENANT}, '${q.replace(/'/g,"''").slice(0,40)}${q.length>40?'…':''}', '${r.mode}', ${n}, ${n?CH[r.hits[0]].id:'NULL'}, ${n?`'${CH[r.hits[0]].head.replace(/'/g,"''")}'`:'NULL'}, ${total});`,rnd(1,3),1);
+  netEnd(e,200,{query:q,mode:r.mode,filter:r.mode==='keyword'?null:(r.filter==='iter'?'iterative_scan':'post_filter'),limit:K,returned:n,
+    results:[...r.hits.slice(0,3).map((k,i)=>hitJson(r,k,i)),...(n>3?[`… ${n-3} sonuç daha`]:[])]},total,{'Content-Type':'application/json','Server-Timing':`embed;dur=${ems}, db;dur=${r.sqlMs}`});
+  fly('e-web','#43b883',true);
+  log('INFO','search-api','c.y.search.retrieval.HybridRetriever',`tenant=${TENANT} mode=${r.mode} keyword=${r.kw?r.kw.length:'-'} semantic=${r.vec?r.vec.length:'-'} returned=${n}/${K}${r.vec?` (ef_search=${r.ef}, iterative_scan=${r.filter==='iter'?'relaxed_order':'off'}, scanned=${r.scanned})`:''} ${r.sqlMs} ms`);
+  if(r.short)log('WARN','search-api','c.y.search.retrieval.HybridRetriever',`Short semantic branch: requested ${BRANCH}, got ${r.vec.length} (tenant_id=${TENANT}, hnsw.ef_search=${r.ef}, iterative_scan=off)`);
+  if(!n)log('WARN','search-api','c.y.search.api.SearchController',`Zero results for q="${q}" (tenant=${TENANT}, mode=${r.mode})`);
+  store.searching=false;store.result=r;
+  store.log.push({t:hm(),ch:'Bu ekran',q,n,top:n?CH[r.hits[0]].head:null,mine:true});
+  sys.last.done=true;sys.last.stage=3;
+  renderPage();renderAll();
+  const g=r.golden?CH[r.golden].head:'',miss=r.relevant.filter(k=>!r.hits.includes(k)).map(k=>`"${CH[k].head}"`);
+  let title,desc;
+  if(r.wrong&&!r.rank){title=`200: ${n} sonuç, ${n===1?'aramayla':'hiçbiri aramayla'} ilgili değil`;desc=`Ne embedding-api ne PostgreSQL hata verdi. Uzaklıklar 0,94'ün üstünde: liste aramayla ilgisi olmayan parçalardan oluşuyor${r.short?". Bu aramanın log'a düşen tek WARN'ı kısa sayfa uyarısı; model uyuşmazlığından hiç söz etmiyor.":" ve bu arama boyunca log'lara tek bir WARN bile düşmedi."}`;}
+  else if(r.wrong){title=`200: ${n} sonuç, aranan içerik ${r.rank}. sırada`;desc=`Vector kolu ilgisiz parçalar döndürdü (uzaklıklar 0,94'ün üstünde); aranan içeriği kelime kolu buldu. Hata hiçbir yerde görünmüyor.`;}
+  else if(r.state==='KAYNAKTA YOK'){title=`200: ${n} sonuç, ama bu konu bilgi kaynaklarında yok`;desc=n?`Listedeki parçalar sadece en yakın olanlar, aramayı cevaplamıyor. Vector araması uzaklık ne kadar büyük olursa olsun en yakın ${BRANCH} satırı döndürür; alakasız sonuçları ayıklamak uygulamanın işi.`:'Hiçbir kol sonuç döndürmedi.';}
+  else if(r.state==='EKSİK'){title=`200: LIMIT ${K} istendi, ${n} sonuç döndü`;desc=`Ekranda ${n} sonuç var${n?`, ilki "${CH[r.hits[0]].head}"`:''}. ${miss.length?`${miss.join(', ')} index'in ilk ${r.scanned} adayında değildi. `:''}Hata yok; log'da sadece kısa sayfa uyarısı var ve bu arama "${K}'dan az sonuç dönen" oranına yazılacak.`;}
+  else if(!n){title='200: 0 sonuç';desc=r.topic==='parola'?`Yardım merkezinde "Online İşlemler parolanı sıfırlama" makalesi var. 'unut', 'onl' ve 'işlem' kökleri makalede geçiyor; 'şifre' (makale 'parola' diyor) ve 'giremiyor' geçmiyor. plainto_tsquery bütün kökleri AND ile aradığı için kelime araması onu bulamadı. Temsilci boş bir sayfa görüyor, arama kayıtlarına sonuçsuz arama düşüyor.`:gapText(q,r.golden)?`${gapText(q,r.golden)}. plainto_tsquery bütün kökleri AND ile aradığı için kelime araması onu bulamadı.`:`"${g}" parçası var, ama kelime araması onu bulamadı.`;}
+  else if(r.state==='ZAYIF'){title=`200: ${n} sonuç, aranan içerik ${r.rank}. sırada`;const ai=r.hits.indexOf(r.golden)+1||r.rank;
+    desc=r.topic==='ts999'&&r.mode==='vector'?`Genel hata kodları makalesi 1. sırada, TS-999'un kendi makalesi ${ai}. sırada. Embedding kodu benzer kodlardan net ayıramıyor; temsilci doğru makaleye ancak listeyi okuyarak ulaşıyor.`
+    :r.topic==='ts999'&&r.mode==='keyword'?`Kelime araması kodu birebir içeren ${n} parçayı buldu: "${CH[r.hits[0]].head}" 1. sırada${r.rank<ai?`, "${CH[r.hits[r.rank-1]].head}" ${r.rank}. sırada`:''}, TS-999'un kendi makalesi ancak ${ai}. sırada. ts_rank_cd (normalizasyon 0) metnin uzunluğuna bakmaz; sorgunun bütün köklerini yan yana içeren her blok (cover) puan ekler. Talepte kod hem başlıkta hem metinde geçtiği için blok sayısı daha fazla. Hangi parçanın soruyu cevapladığını bilmiyor.`:`"${CH[r.hits[0]].head}" 1. sırada, aranan "${g}" ${r.rank}. sırada.`;}
+  else if(r.state==='KAÇIRDI'){title=`200: ${n} sonuç, aranan içerik listede yok`;desc=`"${g}" parçası ilk ${K} sonuçta değil.`;}
+  else{title=`200: ${n} sonuç, aranan içerik 1. sırada`;desc=`Toplam ${total} ms: ${r.mode==='keyword'?'':`embedding ${ems} ms, `}SQL ${String(r.sqlMs).replace('.',',')} ms.${r.mode==='hybrid'&&r.filter==='iter'?(r.scanned>r.ef?` Bedeli: her aramada bir embedding çağrısı ve ${r.scanned} adaylık index taraması (post-filter'da ${r.ef}).`:` Bedeli: her aramada bir embedding çağrısı; bu soruda LIMIT ilk ${r.ef} adayın içinde doldu, iterative scan ek tarama yapmadı.`):''} Sonuca tıklayınca parçanın tam metni açılır; oradan kaynağa geçilebilir.`;}
+  if(!r.topic)desc+=' Not: bu arama önerilen üç aramadan biri değil; sonuçlar gerçek embedding ile değil, tarayıcıdaki yaklaşık bir anlam modeliyle hesaplandı.';
+  await step(flow,{title,desc,nodes:['n-api','n-web'],tab:r.short?'idx':'rank'});
+  endFlow();
+}
+function endFlow(){busy=false;renderPage();if(!queue.length)idleCheck();}
+
+/* ================= BACKEND SİMÜLASYONU: kaynak yükleme (yazma anı) ================= */
+// v3.2'nin parça numaraları: s. 22'deki yeni bölüm 2 parça ekliyor, sonraki sayfaların parçaları 2 kayıyor
+const NEW_NO=[9,31,72,92,135,193];
+const NEW_CH=[['s. 4 · Kutu içeriği',61],['s. 9 · Modemi fiber prizine bağlama',118],['s. 18 · Wi-Fi ağ adını ve şifresini değiştirme',109],['s. 22 · Wi-Fi 6 ve kanal genişliği (yeni)',124],['s. 31 · Modemi yeni adreste kurma',102],['s. 44 · Fabrika ayarlarına dönme',97]];
+async function ingest(srcId){
+  if(busy)return;busy=true;sys.lastKind='ing';
+  const flow={name:'YÜKLEME',n:0,gen},S=SRC[srcId],job='ing_7Q2K9'+(h32(Date.now())%9);
+  const ing=sys.ing={src:srcId,job,stage:'QUEUED',pct:0,done:false,emb:0,old:S.chunks,neu:214,tx:false};
+  store.uploading=srcId;$('modal').hidden=true;go('kaynaklar');
+  const e=netStart('POST',`/api/v1/workspaces/${TENANT}/sources/${srcId}/versions`,'search-api',{file:'Dalga-T5-Kullanim-Kilavuzu-v3.2.pdf',size:'2,4 MB',contentType:'application/pdf',version:'3.2'},{'Content-Type':'multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxk','Authorization':'Bearer eyJhbGciOiJSUzI1NiIs…'});
+  fly('e-web');await pause(flow,200);
+  sql('kb-db','search-api',`INSERT INTO ingest_jobs (id, tenant_id, source_id, version, file_key, status, created_at)\nVALUES ('${job}', ${TENANT}, ${srcId}, '3.2', 'uploads/${TENANT}/${srcId}/v3.2.pdf', 'QUEUED', now());\nUPDATE kb_sources SET status = 'INGESTING'\nWHERE id = ${srcId} AND tenant_id = ${TENANT};`,2,1);
+  netEnd(e,202,{jobId:job,status:'QUEUED'},rnd(140,190),{'Location':`/api/v1/ingest-jobs/${job}`});
+  log('INFO','search-api','c.y.search.sources.SourceController',`Accepted new version 3.2 for source ${srcId} (2.4 MB), job=${job}`);
+  renderAll();renderPage();startPoll();
+  await step(flow,{title:'PDF yüklendi, iş kuyruğa alındı (202 Accepted)',desc:'Yükleme isteği parçalama ve embed işini beklemez; onu arka planda ingest-worker yapar. Ekran iş durumunu 2 saniyede bir soruyor. Arama bu sırada v3.1\'in parçalarını döndürmeye devam ediyor.',nodes:['n-web','n-api'],tb:['tb-src'],tab:'net'});
+
+  ing.stage='PARSING';ing.pct=12;$('wrk-s').textContent=job;$('n-wrk').classList.add('hot');renderPage();
+  fly('e-wpg');
+  sql('kb-db','ingest-worker',`UPDATE ingest_jobs\nSET status = 'RUNNING', stage = 'PARSING', attempts = attempts + 1,\n    started_at = now(), heartbeat_at = now()\nWHERE id = (\n  SELECT id FROM ingest_jobs\n  WHERE status = 'QUEUED'\n     OR (status = 'RUNNING' AND heartbeat_at < now() - interval '2 minutes')\n  ORDER BY created_at\n  LIMIT 1\n  FOR UPDATE SKIP LOCKED\n)\nRETURNING id, tenant_id, source_id, version, file_key, attempts;`,rnd(1,3),1);
+  log('INFO','ingest-worker','c.y.ingest.SourceIngestJob',`Ingest ${job} started: source=${srcId} version=3.2 (Dalga-T5-Kullanim-Kilavuzu-v3.2.pdf, 2.4 MB)`);
+  log('INFO','ingest-worker','c.y.ingest.SourceIngestJob','PagePdfDocumentReader read 48 pages');
+  // iş durumu sorgusu (GET /ingest-jobs/{id}) bu kolonları okur; heartbeat_at eskirse iş başka bir worker'a geçer
+  const stageSql=()=>sql('kb-db','ingest-worker',`UPDATE ingest_jobs SET stage = '${ing.stage}', embedded = ${ing.emb}, heartbeat_at = now()\nWHERE id = '${job}';`,1,1);
+  ing.stage='CHUNKING';ing.pct=24;ing.chunked=true;stageSql();renderPage();renderHealth();
+  log('INFO','ingest-worker','c.y.ingest.SourceIngestJob','TokenTextSplitter(chunkSize=160) produced 214 chunks, avg 104 tokens');
+  await step(flow,{title:'48 sayfa okundu ve 214 parçaya bölündü',desc:'Kılavuzun tamamı tek vector olsa kurulumdan fabrika ayarına her konunun karışımı olurdu; cümle başına vector ise bağlamı kaybederdi. Parçalar en fazla 160 token, ortalama 104. PDF okuyucu her sayfayı ayrı belge verdiği için bir parça sayfa sınırını geçmez; başlıktaki "s. N" buradan gelir. Splitter bölüm başlıklarını bilmez, metni token sayısına göre cümle sonlarından keser; bölüm adı PDF yer imlerinden okunur.',nodes:['n-wrk'],tab:'log'});
+
+  ing.stage='EMBEDDING';renderPage();
+  const sizes=[96,96,22];
+  for(let b=0;b<3;b++){
+    const ee=netStart('POST','/v1/embeddings','ingest-worker',{model:MODEL,input:[`Kutuda Dalga T5 modem, 12 V adaptör…`,`Fiber patch kablonun yeşil ucunu…`,`… ${sizes[b]-2} parça daha`],encoding_format:'float'},{'Content-Type':'application/json','Authorization':'Bearer sk-proj-…'},'https://api.openai.com');
+    fly('e-wrk');await pause(flow,sys.stepMode?160:120);const ms=rnd(780,1120);const tk=sizes[b]*104+rnd(-120,120);
+    netEnd(ee,200,{object:'list',data:[{object:'embedding',index:0,embedding:['…1536 sayı']},`… ${sizes[b]-1} embedding daha`],model:MODEL,usage:{prompt_tokens:tk,total_tokens:tk}},ms,{'openai-model':MODEL});
+    ing.emb+=sizes[b];ing.pct=24+Math.round(ing.emb/214*52);stageSql();renderPage();renderHealth();
+    log('INFO','ingest-worker','c.y.ingest.SourceIngestJob',`Embedded batch ${b+1}/3 (${sizes[b]} chunks, ${tk} tokens) in ${ms} ms`);
+    if(b===0)await step(flow,{title:'Parçalar toplu istekle embed ediliyor: 3 istekten 1.',desc:`Embedding API tek istekte birden çok metin kabul eder; 214 ayrı çağrı yerine 96'lık gruplar. Bu iş müşteriyi bekletmez, yazma anında ve arka planda yapılır. Her parça embedding_model = '${MODEL_TAG}' etiketiyle yazılacak.`,nodes:['n-wrk','n-emb'],tab:'net'});
+  }
+  await step(flow,{title:'214 parçanın vector\'ü hazır',desc:`3 istek, ~${nTr(22300)} token. Model değişirse bu işin bütün parçalar için yeniden yapılması gerekir: farklı modelin vector'leriyle arama yapılamaz.`,nodes:['n-wrk','n-emb'],tab:'log'});
+
+  ing.stage='WRITING';ing.pct=86;stageSql();ing.tx=true;renderPage();
+  fly('e-wpg');
+  sql('kb-db','ingest-worker',`BEGIN;\nDELETE FROM kb_chunks WHERE source_id = ${srcId};`,rnd(14,22),S.chunks);
+  sql('kb-db','ingest-worker',`INSERT INTO kb_chunks\n  (tenant_id, source_id, chunk_no, heading, content, embedding, embedding_model)\nVALUES (${TENANT}, ${srcId}, 0, 's. 4 · Kutu içeriği', 'Kutuda Dalga T5 modem…', '${vecStr('new0')}', '${MODEL_TAG}'),\n       … 213 satır daha;`,rnd(310,420),214);
+  // diğer oturumlar commit'e kadar eski sayıyı görür; yeni sayı sadece bu transaction'ın içinde
+  sys.txTotal=sys.chunkTotal-S.chunks+214;sys.mutations=NEW_CH.map((x,i)=>({id:1993401+i*3,head:x[0],t:x[1],no:NEW_NO[i],unc:true}));
+  renderDb();renderMap();
+  await step(flow,{title:`Eski ${S.chunks} parça silindi, 214 yeni parça yazıldı (TX açık)`,desc:'İkisi aynı transaction\'da. Commit olana kadar aramalar eski parçaları görür; iş yarıda kalırsa eski parçalar yerinde durur. Yeni satırlar INSERT sırasında HNSW grafiğine bağlandı, index\'i yeniden kurmak gerekmiyor. Silinen satırlar VACUUM\'a kadar grafikte ölü kayıt olarak kalır. Yeni parçalar yeni id alır; arama kayıtları ilk sonucun başlığını kendi satırında sakladığı için eski kayıtlar silinen parçaya bağlı kalmaz.',nodes:['n-wrk','n-pg'],tb:['tb-chk','tb-hnsw'],tab:'db'});
+
+  sql('kb-db','ingest-worker',`UPDATE kb_sources\nSET version = '3.2', chunk_count = 214, status = 'READY', synced_at = now()\nWHERE id = ${srcId} AND tenant_id = ${TENANT};\nUPDATE ingest_jobs SET status = 'DONE', stage = 'DONE', finished_at = now() WHERE id = '${job}';\nCOMMIT;`,rnd(3,6),1);
+  sys.mutations.forEach(m=>m.unc=false);sys.chunkTotal=sys.txTotal;
+  // commit sonrası arama yeni satırları görür: kimlikler, sayfa numaraları, yeni bölüm
+  NEW_CH.forEach((x,i)=>{const id=1993401+i*3,no=NEW_NO[i],c=Object.values(CH).find(c=>c.src===302&&c.head===x[0]);
+    if(c)Object.assign(c,{id,no,t:x[1]});
+    else CH.k5={key:'k5',id,src:302,no,head:x[0],t:x[1],text:'Wi-Fi 6 (802.11ax) 5 GHz ağında kanal genişliğini 80 MHz yapmak hızı artırır; eski cihazlar için 2,4 GHz ağını açık tut.'};});
+  S.chunks=214;S.ver='3.2';S.detail='48 sayfa · v3.2';S.synced='az önce';S.ts=new Date().toISOString().slice(0,10)+' '+clock().slice(0,8)+'+03';S.file='Dalga-T5-Kullanim-Kilavuzu-v3.2.pdf';
+  ing.stage='DONE';ing.pct=100;ing.tx=false;ing.done=true;store.uploading=null;
+  $('wrk-s').textContent='boşta';$('n-wrk').classList.remove('hot');
+  log('INFO','ingest-worker','c.y.ingest.SourceIngestJob',`Replaced ${ing.old} chunks with 214 in 1 transaction; ingest ${job} finished in 9.4 s`);
+  renderDb();renderMap();renderPage();renderHealth();
+  toast('Modem kılavuzu v3.2 hazır · 214 parça');
+  await step(flow,{title:'COMMIT: yeni parçalar aramada',desc:`Ekran bir sonraki sorguda "Hazır · 214 parça" gördü. Bundan sonraki her arama v3.2'nin parçalarını görür; kb_chunks'ta artık ${nTr(sys.chunkTotal)} satır var.`,nodes:['n-web','n-api','n-pg'],tb:['tb-src','tb-chk'],tab:'db'});
+  endFlow();
+}
+let pollT=null;
+function startPoll(){clearInterval(pollT);pollT=setInterval(()=>{const I=sys.ing;if(!I){clearInterval(pollT);return;}
+  const e=netStart('GET',`/api/v1/ingest-jobs/${I.job}`,'search-api',null,{'Accept':'application/json'});
+  setTimeout(()=>{netEnd(e,200,{jobId:I.job,status:I.done?'DONE':I.stage==='QUEUED'?'QUEUED':'RUNNING',stage:I.stage,progress:I.pct/100,chunks:{embedded:I.emb,total:I.chunked?214:null}},rnd(6,14),{'Cache-Control':'no-store'});},40);
+  if(I.done)clearInterval(pollT);},2000);}
+
+/* ================= API (sol taraf sadece bunu çağırır) ================= */
+const api={
+  search:q=>search(q),
+  upload:id=>ingest(id),
+  async sources(){const e=netStart('GET',`/api/v1/workspaces/${TENANT}/sources`,'search-api',null,{'Accept':'application/json'});await wait(rnd(50,90));
+    sql('kb-db','search-api',`SELECT id, name, kind, version, chunk_count, status, synced_at\nFROM kb_sources WHERE tenant_id = ${TENANT}\nORDER BY id;`,rnd(1,2),4);
+    netEnd(e,200,{items:Object.entries(SRC).map(([id,s])=>({id:+id,name:s.name,chunks:s.chunks,status:store.uploading==+id?'INGESTING':'READY'}))},rnd(9,20));},
+  async source(id){const e=netStart('GET',`/api/v1/workspaces/${TENANT}/sources/${id}/chunks?size=6`,'search-api',null,{'Accept':'application/json'});await wait(rnd(50,90));
+    sql('kb-db','search-api',`SELECT id, chunk_no, heading, left(content, 120), embedding_model\nFROM kb_chunks\nWHERE tenant_id = ${TENANT} AND source_id = ${id}\nORDER BY chunk_no\nLIMIT 6;`,rnd(1,3),6);
+    netEnd(e,200,{sourceId:id,total:SRC[id].chunks,items:srcChunks(id).slice(0,2).map(c=>({id:c.id,chunkNo:c.no,heading:c.head})),'…':'4 parça daha'},rnd(9,22));},
+  async searches(){const e=netStart('GET',`/api/v1/workspaces/${TENANT}/search-events?size=20`,'search-api',null,{'Accept':'application/json'});await wait(rnd(50,90));
+    sql('kb-db','search-api',`SELECT created_at, channel, query, result_count, top_heading\nFROM search_events\nWHERE tenant_id = ${TENANT}\nORDER BY created_at DESC\nLIMIT 20;`,rnd(2,4),store.log.length);
+    netEnd(e,200,{items:store.log.slice(-2).reverse().map(x=>({query:x.q,resultCount:x.n,topHeading:x.top})),'…':`${store.log.length-2} kayıt daha`},rnd(10,24));}
+};
+// kaynak sayfası içeriğin önizlemesini gösterir (SQL'deki left(content, 120)); token sayısı parçanın tamamına ait
+const preview=t=>{t=t||'';return (t.length>120?t.slice(0,t.lastIndexOf(' ',118)):t)+' …';};
+function srcChunks(id){return Object.values(CH).filter(c=>c.src===id).sort((a,b)=>a.no-b.no||a.id-b.id);}
+
+/* ================= KONSOL RENDER ================= */
+function jsonHtml(o){
+  if(o==null)return '<span class="jb">null</span>';
+  return esc(JSON.stringify(o,null,2)).replace(/(&quot;(?:[^&]|&(?!quot;))*?&quot;)(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?)/g,(m,s,colon,b,n)=>{
+    if(s)return colon?`<span class="jk">${s}</span>${colon}`:`<span class="js">${s}</span>`;
+    if(b)return `<span class="jb">${b}</span>`;return `<span class="jn">${n}</span>`;});
+}
+const statusText={200:'OK',201:'Created',202:'Accepted',204:'No Content',404:'Not Found',503:'Service Unavailable'};
+function renderNet(){
+  const rows=sys.net.slice().reverse();
+  const sel=sys.net.find(n=>n.id===selNet)||rows[0];
+  let h=`<table class="ntable"><thead><tr><th>Durum</th><th>Metot</th><th>URL</th><th>Servis</th><th>Süre</th><th>Saat</th></tr></thead><tbody>`;
+  h+=rows.map(n=>`<tr class="row ${sel&&n.id===sel.id?'sel':''} ${n.id===marks.net?'fresh':''}" data-id="${n.id}"><td class="${n.status==null?'sP':n.status<400?'s2':'s5'}">${n.status==null?'(beklemede)':n.status}</td><td class="m-${n.method==='GET'?'GET':'POST'}">${n.method}</td><td class="path">${esc(n.path)}</td><td>${n.service}</td><td>${n.ms==null?'…':n.ms+' ms'}</td><td>${n.t.slice(0,8)}</td></tr>`).join('');
+  h+='</tbody></table>';
+  if(!rows.length)h='<div class="hint">Henüz istek yok. Soldaki bilgi bankasında bir arama yap; tarayıcının, search-api\'nin ve embedding servisinin her isteği burada görünecek.</div>';
+  else if(sel){
+    h+=`<div class="detail"><h4>Genel</h4><div class="kvs"><span>Request URL</span><span>${esc(sel.host+sel.path)}</span><span>Method</span><span>${sel.method}</span><span>Status</span><span class="${sel.status==null?'sP':sel.status<400?'s2':'s5'}">${sel.status==null?'beklemede…':sel.status+' '+(statusText[sel.status]||'')}</span><span>Servis</span><span>${sel.service}</span>${
+      Object.entries(sel.headers).map(([k,v])=>`<span>${esc(k)}</span><span>${esc(v)}</span>`).join('')}${
+      Object.entries(sel.resHeaders||{}).map(([k,v])=>`<span>${esc(k)}</span><span>${esc(v)}</span>`).join('')}</div>`;
+    if(sel.req)h+=`<h4>Request payload</h4><pre class="json">${jsonHtml(sel.req)}</pre>`;
+    h+=`<h4>Response</h4>${sel.status==null?'<div class="hint" style="padding:0">Cevap bekleniyor…</div>':`<pre class="json">${jsonHtml(sel.res)}</pre>`}</div>`;
+  }
+  $('p-net').innerHTML=h;marks.net=null;updBadges();
+}
+$('p-net').addEventListener('click',e=>{const r=e.target.closest('tr.row');if(r){selNet=+r.dataset.id;renderNet();}});
+
+const SQLK=/\b(SELECT|INSERT|INTO|VALUES|UPDATE|DELETE|SET LOCAL|SET|WITH|AS MATERIALIZED|AS|WHERE|FROM|JOIN|FULL OUTER JOIN|USING|ON|ORDER BY|LIMIT|DESC|AND|NULL|BEGIN|COMMIT|COALESCE|RANK|OVER|LEFT)\b/g;
+const short=(s,n)=>s.length>n?s.slice(0,n-1)+'…':s;
+function renderDb(){
+  const L=sys.last,show=L&&L.done&&!(sys.lastKind==='ing');
+  let h='<div class="dbwrap">';
+  // kb_chunks
+  let rowsHtml,cap,heads;
+  if(sys.mutations.length&&sys.lastKind==='ing'){
+    const tx=sys.ing&&sys.ing.tx;
+    cap=`<b>kb_chunks</b> · ${nTr(sys.chunkTotal)} satır${tx?` (transaction içinde ${nTr(sys.txTotal)})`:''} · source_id = 302 yeni sürüm${tx?' · <span class="pill T">TX açık</span>':''}`;
+    heads=['id','tenant_id','heading','embedding','embedding_model'];
+    rowsHtml=sys.mutations.map(m=>`<tr class="${m.unc?'unc':'new'}"><td>${m.id}</td><td>${TENANT}</td><td class="n w">${esc(m.head)}</td><td class="vec">${vecShort('m'+m.id)}</td><td>${MODEL_TAG}</td></tr>`).join('')+`<tr><td colspan="5" class="null">… 208 satır daha${tx?' (aynı transaction, commit bekliyor)':''}</td></tr>`;
+  }else{
+    const keys=show?L.r.hits:['c1','c5','c12','c13','c8'];
+    cap=`<b>kb_chunks</b> · ${nTr(sys.chunkTotal)} satır · ${show?`son aramanın döndürdüğü ${keys.length} satır`:`tenant_id = ${TENANT} örnek satırlar`}`;
+    heads=['id','tenant_id','heading','embedding_model',show?'sıralama':'created_at'];
+    rowsHtml=keys.length?keys.map(k=>{const c=CH[k];const f=show?L.r.fused.find(x=>x.k===k):null;
+      return `<tr class="${show?'new':''}"><td>${c.id}</td><td>${TENANT}</td><td class="n w">${esc(c.head)}</td><td>${MODEL_TAG}</td><td>${f?(f.score!=null?'score '+fmt(f.score):f.dist!=null?'dist '+fmt(f.dist):'kelime #'+f.kr):'2026-10-'+pad(8+c.id%14)}</td></tr>`;}).join('')
+      :'<tr><td colspan="5" class="null">0 satır</td></tr>';
+  }
+  h+=`<div class="dtable"><div class="cap"><span>${cap}</span><span class="db">kb-db</span></div><div class="dscroll"><table class="dt"><thead><tr>${heads.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div></div>`;
+  // kb_sources
+  h+=`<div class="dtable"><div class="cap"><span><b>kb_sources</b> · tenant_id = ${TENANT}</span><span class="db">kb-db</span></div><div class="dscroll"><table class="dt"><thead><tr><th>id</th><th>name</th><th>kind</th><th>version</th><th>chunk_count</th><th>status</th><th>synced_at</th></tr></thead><tbody>${
+    Object.entries(SRC).map(([id,s])=>{const run=store.uploading==+id;return `<tr class="${sys.ing&&sys.ing.src==+id?'new':''}"><td>${id}</td><td class="n w">${esc(s.name)}</td><td>${s.code}</td><td>${s.ver?s.ver:'<span class="null">NULL</span>'}</td><td>${s.chunks}</td><td>${run?'<span class="pill T">INGESTING</span>':'<span class="pill S">READY</span>'}</td><td>${s.ts}</td></tr>`;}).join('')}</tbody></table></div></div>`;
+  h+=`<div class="dtable"><div class="cap"><span><b>Sorgu geçmişi</b> · en yeni üstte</span><span>${sys.sql.length}</span></div><div style="padding:10px" class="sqllog">${sys.sql.length?
+    sys.sql.slice(0,30).map((q,i)=>`<div class="sq ${i===0&&marks.sql?'fresh':''}"><div class="h"><span>${q.t}</span><span class="w">${q.db}</span><span>${q.who}</span><span>${q.ms} ms</span>${q.rows!=null?`<span>${q.rows} satır</span>`:''}</div><code>${esc(q.text).replace(SQLK,'<span class="kw">$1</span>')}</code></div>`).join(''):'<div class="dempty" style="padding:0">Henüz sorgu çalışmadı.</div>'}</div></div>`;
+  h+='</div>';
+  $('p-db').innerHTML=h;marks.sql=0;updBadges();
+}
+function renderRank(){
+  const L=sys.last;
+  if(!L){$('p-rank').innerHTML=`<div class="hint">Bir arama yapınca iki listeyi ve birleştirmeyi burada göreceksin: kelime kolu (ts_rank_cd), vector kolu (cosine distance), RRF ve sonuç sayfasına giren ilk ${K} parça.</div>`;return;}
+  const r=L.r,g=r.golden;
+  let h=`<div class="xwrap"><div class="xmeta"><span>arama <b>"${esc(L.q)}"</b></span><span>mod <b>${r.mode}</b></span>${r.relevant.length?`<span>aranan içerik <b style="color:var(--o-amber)">${esc(CH[r.relevant[0]].head)}</b></span>`:'<span>bilgi kaynaklarında bu konuyu anlatan parça yok</span>'}</div><div class="legs">`;
+  const kwOn=r.mode!=='vector';
+  h+=`<div class="leg ${kwOn?'':'off'}"><h5>Kelime kolu <span>${kwOn?(L.shown.kw?r.kw.length+' satır · GIN':'bekliyor'):'bu modda yok'}</span></h5>${!kwOn?'<div class="none">Vector modda arama sadece embedding ile yapılır.</div>':''}${kwOn&&L.shown.kw?`<div class="tsql">plainto_tsquery → ${esc(r.tsq)}</div>`+(r.kw.length?`<ol>${r.kw.map(x=>`<li class="${r.relevant.includes(x.k)?'gold':''}"><span class="r">${x.rank}</span><span class="nm">${esc(CH[x.k].head)}</span><span class="v">${fmt(x.score)}</span></li>`).join('')}</ol>`:'<div class="none">0 satır: köklerin hepsini içeren parça yok.</div>'):''}</div>`;
+  const vOn=r.mode!=='keyword';
+  h+=`<div class="leg ${vOn?'':'off'}"><h5>Vector kolu <span>${vOn?(L.shown.vec?`${r.vec.length}/${BRANCH} satır · cosine distance`:'bekliyor'):'bu modda yok'}</span></h5>${!vOn?'<div class="none">Keyword modda embedding hiç hesaplanmaz.</div>':''}${vOn&&L.shown.vec?`<ol>${r.vec.map(x=>`<li class="${r.relevant.includes(x.k)?'gold':''}"><span class="r">${x.rank}</span><span class="nm">${esc(CH[x.k].head)}</span><span class="v">${fmt(x.dist)}</span></li>`).join('')}</ol>${r.vec.length<BRANCH?`<div class="none">LIMIT ${BRANCH} istendi, ${r.vec.length} satır döndü: index ${r.scanned} aday üretti, filtre ${ek(r.removed,true)} eledi.</div>`:''}`:''}</div></div>`;
+  if(r.mode==='hybrid'){
+    h+=`<div class="dtable"><div class="cap"><span><b>RRF</b> · puan = Σ 1 / (60 + sıra)</span><span>${L.shown.fused?r.fused.length+' parça':'bekliyor'}</span></div>${L.shown.fused&&r.fused.length?`<div class="dscroll"><table class="dt"><thead><tr><th>#</th><th>parça</th><th>kelime</th><th>vector</th><th>hesap</th><th>puan</th></tr></thead><tbody>${
+      r.fused.slice(0,12).map((f,i)=>`<tr class="${r.relevant.includes(f.k)?'gold':''}"><td>${i<K?`<span class="pill B">${i+1}</span>`:i+1}</td><td class="n w">${esc(CH[f.k].head)}</td><td>${f.kr??'<span class="null">yok</span>'}</td><td>${f.vr??'<span class="null">yok</span>'}</td><td class="f">${[f.kr,f.vr].filter(Boolean).map(x=>`1/${60+x}`).join(' + ')}</td><td class="s">${fmt(f.score)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="dempty">İki liste geldikten sonra burada birleşecek.</div>'}</div>
+      <p class="note2">Mavi sıra numarası sonuç sayfasına giren ilk ${K} parça. RRF puanlara bakmaz, sadece sıraya bakar: ts_rank_cd ile cosine distance farklı ölçeklerde olduğu için doğrudan toplanamaz. k = 60 sıralar arasındaki farkı yumuşatır.</p>`;
+  }
+  if(L.shown.fused){
+    h+=`<div class="dtable"><div class="cap"><span><b>Sonuç sayfası</b> · LIMIT ${K}</span><span>${r.hits.length}/${K}</span></div>${r.hits.length?`<div class="dscroll"><table class="dt"><thead><tr><th>#</th><th>chunk id</th><th>parça</th><th>eşleşme</th></tr></thead><tbody>${
+      r.hits.map((k,i)=>{const f=r.fused.find(x=>x.k===k);return `<tr class="${r.relevant.includes(k)?'gold':''}"><td>${i+1}</td><td>${CH[k].id}</td><td class="n w">${esc(CH[k].head)}</td><td>${[f.kr&&'kelime',f.vr&&'anlam'].filter(Boolean).join(' + ')}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="dempty">0 satır: sonuç sayfası boş.</div>'}</div>`;
+  }
+  h+='</div>';$('p-rank').innerHTML=h;
+}
+function renderIdx(){
+  const L=sys.last,r=L&&L.r;
+  const gc=(k,v,ch)=>`<div class="guc"><span>${k}</span><b class="${ch?'ch':''}">${v}</b></div>`;
+  // gösterilen plan bir aramaya aitse ayarlar da o aramanınkidir
+  const cfg=r&&r.mode!=='keyword'?r:sys;
+  const gucs=`<div class="gucs">${gc('hnsw.ef_search',cfg.ef,cfg.ef!==40)}${gc('hnsw.iterative_scan',cfg.filter==='iter'?'relaxed_order':'off',cfg.filter==='iter')}${gc('hnsw.max_scan_tuples',nTr(MAX_SCAN))}${gc('m / ef_construction','16 / 64')}${gc('pg_relation_size(index)','3,2 GB')}${gc(`tenant_id = ${TENANT}`,`${nTr(tenantRows())} satır (${pct(3.1)})`)}</div>`;
+  let h='<div class="xwrap">';
+  if(!r||r.mode==='keyword'||!L.stage){
+    h+=gucs+`<p class="note2">${r&&r.mode==='keyword'?'Keyword modda HNSW index\'i kullanılmaz; kelime kolu GIN (tsv_idx) ve tenant filtresiyle çalışır.':'Vector ya da Hybrid modda bir arama yapınca semantic kolunun EXPLAIN (ANALYZE, BUFFERS) çıktısı ve index\'in ürettiği adaylar burada görünecek. Filtreli aramada bakılacak satır: Rows Removed by Filter.'}</p>`;
+  }else{
+    const upto=L.done||L.stage>=2?r.scanned:(r.batches[L.batch]?.upto||0);
+    const prevUpto=L.done||L.stage>=2?upto:(L.showFilter?upto:(r.batches[L.batch-1]?.upto||0));
+    if(L.stage>=2||L.done){
+      h+=`<pre class="plan">${explainText(L)}</pre>`;
+      h+=`<p class="note2">${r.vec.length<BRANCH?`<b>Rows Removed by Filter: ${r.removed}.</b> Index ${r.scanned} aday üretti, filtre ${r.vec.length} satır bıraktı, LIMIT ${BRANCH} dolmadı. Sorgu hata vermedi.`:`Index ${r.scanned} aday tarayıp ${BRANCH} satıra ulaştı.`} Planlayıcı bu boyutta B-tree (tenant_idx) + kesin arama yerine HNSW'yi seçiyor. Aynı şemanın 100 bin satırlık kopyasında (kiracının 3.100 satırı) B-tree + kesin aramayı seçmiş ve 10 satırın hepsini döndürmüştü: sorun tablo büyüyünce ortaya çıkar. Tek çözüm iterative scan değil: tabloyu tenant_id'ye göre partition'lamak ya da büyük çalışma alanlarına partial HNSW index vermek de aynı sorunu çözer. Bu lab iterative scan'i gösteriyor.</p>
+      <p class="note2"><b>Ölçüm</b> (Docker, pgvector 0.8.7, aynı şema, 412.860 satır, kiracı %3,1, 30 sorgu): post-filter LIMIT 10'a ortalama 1,07 satır döndürdü, 9 sorguda 0. iterative scan 10 satıra 185-546 adayda ulaştı (ortalama 330, 44,6 ms).${r.vec.length>=BRANCH&&r.scanned<185?` Bu sorudaki ${r.scanned} aday daha az, çünkü ${TENANT_NAME}'in parçaları kendi müşterisinin sorusuna rastgele satırlardan daha yakın duruyor.`:''}</p>
+      <p class="note2"><b>Yukarıdaki plan bu ölçümlerden türetildi, birebir çıktı değil.</b> rows ve Rows Removed by Filter ${r.topic?'bu sorunun Docker\'da ölçülen aday sıralarından':'tarayıcıdaki yaklaşık anlam modelinden'} gelir; süreler (aday başına ~0,12 ms) ve Buffers değerleri tahmindir.</p>`;
+      h+=`<pre class="plan q">${esc(explainSql(r)).replace(SQLK,'<span class="kw">$1</span>').replace(/\bEXPLAIN\b/,'<span class="kw">EXPLAIN</span>')}</pre>`+gucs;
+    }else h+=gucs;
+    const shown=r.cands.slice(0,upto);
+    h+=`<div class="dtable"><div class="cap"><span><b>Index taramasının adayları</b> · ${shown.length} aday · filtreden geçen ${shown.filter((c,i)=>c.own&&i<prevUpto).length}</span><span>uzaklığa göre</span></div><div class="dscroll" style="max-height:260px"><table class="dt"><thead><tr><th>#</th><th>chunk id</th><th>tenant_id</th><th>çalışma alanı</th><th>heading</th><th>distance</th><th>filtre</th></tr></thead><tbody>${
+      shown.slice(0,160).map((c,i)=>{const f=i<prevUpto;const gold=c.own&&r.relevant.includes(c.k);
+        return `<tr class="${f?(c.own?'pass':'cut'):''} ${gold?'gold':''}"><td>${c.g}</td><td>${c.own?CH[c.k].id:c.id}</td><td>${c.own?TENANT:c.tenant}</td><td>${c.own?TENANT_NAME:c.tname}</td><td class="n w">${esc(c.own?CH[c.k].head:c.head)}</td><td>${fmt(c.dist)}</td><td class="c">${f?(c.own?'geçti':'elendi'):'…'}</td></tr>`;}).join('')}${shown.length>160?`<tr><td colspan="7" class="null">… ${shown.length-160} aday daha</td></tr>`:''}</tbody></table></div></div>
+      <p class="note2">Gruplar görselleştirme içindir: iterative scan taramayı aday aday sürdürür ve LIMIT dolunca durur. Başka çalışma alanlarının parçaları da aynı index'te; ${TENANT_NAME}'in sorusuna yakın duran her satır bir aday yerini doldurur.</p>`;
+  }
+  h+='</div>';$('p-idx').innerHTML=h;
+}
+// Haritadaki aday ızgarası: her kare bir aday; mavi Dalga Fiber, gri diğer çalışma alanları; filtreden sonra elenenler söner
+function renderCand(){
+  const g=$('cand');const L=sys.last;let h='';
+  if(L&&L.r.mode!=='keyword'&&L.stage>=1){
+    const r=L.r;const upto=L.done||L.stage>=2?r.scanned:(r.batches[L.batch]?.upto||0);
+    const prevUpto=L.done||L.stage>=2||L.showFilter?upto:(r.batches[L.batch-1]?.upto||0);
+    const inCtx=new Set(r.hits);
+    r.cands.slice(0,Math.min(upto,160)).forEach((c,i)=>{
+      const x=556+(i%10)*8,y=20+Math.floor(i/10)*8;const f=i<prevUpto;
+      const fill=!f?(c.own?'#5aa2ff':'#4a5566'):(c.own?(inCtx.has(c.k)?'#43b883':'#2f5a46'):'#232931');
+      const gold=c.own&&r.relevant.includes(c.k);
+      h+=`<rect x="${x}" y="${y}" width="6" height="6" rx="1" fill="${fill}"${gold?' stroke="#e3a63c" stroke-width="1.4"':''}/>`;});
+    const passed=r.cands.slice(0,prevUpto).filter(c=>c.own).length;
+    $('cand-l').textContent=`${Math.min(upto,r.cands.length)} aday`;$('cand-l2').textContent=prevUpto>0?`${passed} geçti`:'';
+  }else{$('cand-l').textContent=L&&L.r.mode==='keyword'?'index yok':'adaylar';$('cand-l2').textContent='';}
+  g.innerHTML=h;
+}
+function renderHealth(){
+  const L=sys.last;let chip='<span class="hchip na">HAZIR</span>',extra='';
+  if(sys.lastKind==='ing'&&sys.ing){const I=sys.ing;
+    chip=I.done?'<span class="hchip ok">GÜNCEL · 214 parça</span>':`<span class="hchip wait">İNDEKSLENİYOR · v3.2</span>`;
+    $('health').innerHTML=`<span>kaynak <b>302 · v3.2</b></span><span>parça <b>${I.chunked?214:'–'}</b></span><span>embedding isteği <b>${Math.ceil(I.emb/96)}/3</b></span><span>TX <b>${I.tx?'açık':'kapalı'}</b></span>${chip}`;return;}
+  if(L&&L.done){const r=L.r,n=r.hits.length;
+    const cls={'İSABETLİ':'ok','ZAYIF':'wait','EKSİK':'bad','KAÇIRDI':'bad','KAYNAKTA YOK':'na'}[r.state];
+    chip=`<span class="hchip ${cls}">${r.state} · ${n} sonuç</span>`;
+    extra=`<span>aranan içerik <b>${r.relevant.length?(r.rank?`#${r.rank}`:'yok'):'—'}</b></span><span>taranan aday <b>${r.mode==='keyword'?'–':r.scanned}</b></span><span>SQL <b>${r.sqlMs} ms</b></span>`;
+  }else if(L)chip='<span class="hchip na">ARANIYOR…</span>';
+  $('health').innerHTML=`<span>sonuç <b>${L&&L.done?L.r.hits.length:'–'}/${K}</b></span>${extra}${chip}`;
+}
+function renderMap(){
+  const L=sys.last,r=L&&L.r,mode=r&&!L.done?r.mode:sys.mode;
+  const kwOff=mode==='vector',vecOff=mode==='keyword';
+  ['n-emb','n-scan','n-flt','n-lim'].forEach(n=>$(n).classList.toggle('dim',vecOff));
+  ['e-emb','e-idx','e-flt','e-lim','e-lv','e-cand'].forEach(n=>$(n).classList.toggle('dim',vecOff));
+  $('e-kw').classList.toggle('dim',kwOff);$('tb-gin').style.opacity=kwOff?.4:1;
+  $('n-rrf').classList.toggle('dim',mode!=='hybrid');
+  $('rrf-s').textContent=mode==='hybrid'?`kelime+anlam → ${K}`:mode==='keyword'?'sadece kelime':'sadece anlam';
+  $('n-emb').classList.toggle('warn',sys.wrong);$('emb-s').textContent=sys.wrong?'ada-002 · 1536 (!)':'3-small · 1536';
+  const sc=r&&r.vec?r:sys;
+  $('scan-s').textContent=sc.filter==='iter'?`iterative · ef ${sc.ef}`:`ef_search = ${sc.ef}`;
+  $('lim-s').textContent=L&&L.done&&r.vec?`${r.vec.length} satır döndü`:'semantic kolu';
+  $('n-lim').classList.toggle('bad',!!(L&&L.done&&r.vec&&r.vec.length<BRANCH));
+  $('chk-n').textContent=nTr(sys.chunkTotal);
+  $('tb-chk').classList.toggle('tx',!!(sys.ing&&sys.ing.tx));
+  renderHealth();renderCode();renderIdx();renderCand();
+}
+function renderAll(){renderMap();renderRank();renderDb();}
+
+/* ================= KOD SEKMESİ ================= */
+function renderCode(){
+  const m=sys.mode,it=sys.filter==='iter';
+  const yml=`<span class="cm"># application.yml (search-api)</span>
+search:
+  retrieval:
+    mode: <span class="${m==='hybrid'?'hl':'bad'}">${m}</span>              <span class="cm"># keyword | vector | hybrid</span>
+    limit: ${K}                <span class="cm"># sonuç sayfası</span>
+    branch-limit: ${BRANCH}         <span class="cm"># her kolun LIMIT'i</span>
+    rrf-k: ${RRF_K}
+  pgvector:
+    ef-search: <span class="${sys.ef!==40?'hl':''}">${sys.ef}</span>
+    iterative-scan: <span class="${it?'hl':'bad'}">${it?'relaxed_order':'off'}</span>   <span class="cm"># off → post-filter</span>
+spring:
+  ai:
+    openai:
+      embedding:
+        options:
+          model: <span class="${sys.wrong?'bad':''}">${sys.wrong?WRONG:MODEL}</span>${sys.wrong?'   <span class="cm"># parçalar 3-small ile yazıldı!</span>':''}`;
+  const sem=m==='keyword'?'':`        WITH semantic AS MATERIALIZED (       <span class="cm">-- relaxed_order sırayı hafif kaydırabilir: dışarıda yeniden sırala</span>
+            SELECT id, embedding &lt;=&gt; ? AS distance
+            FROM kb_chunks
+            WHERE <span class="${it?'':'bad'}">tenant_id = ?</span>                  <span class="cm">-- HNSW adaylarına sonradan uygulanır</span>
+            ORDER BY embedding &lt;=&gt; ?
+            LIMIT ?
+        ), semantic_ranked AS (
+            SELECT id, RANK() OVER (ORDER BY distance) AS rank FROM semantic
+        )`;
+  const java=`<span class="an">@Service</span>
+<span class="kk">public class</span> HybridRetriever {
+
+    <span class="kk">public</span> List&lt;ChunkHit&gt; search(<span class="kk">long</span> tenantId, String query) {
+${m==='keyword'?`        <span class="kk">return</span> jdbc.query(KEYWORD_SQL, HIT_MAPPER, ...);`:`        <span class="kk">float</span>[] q = embeddingModel.embed(query);        <span class="cm">// okuma anı: arama metni, parçalarla aynı modelle</span>
+        <span class="kk">return</span> readOnlyTx.execute(status -&gt; {           <span class="cm">// embed transaction'dan önce: HTTP çağrısı beklenirken bağlantı tutulmaz</span>
+            jdbc.execute(<span class="st2">"SET LOCAL hnsw.ef_search = "</span> + props.efSearch());   <span class="cm">// SET LOCAL sadece transaction içinde geçerli</span>
+${it?`            <span class="hl">jdbc.execute("SET LOCAL hnsw.iterative_scan = relaxed_order");</span>`:`            <span class="bad">// iterative_scan kapalı: index en fazla ef_search aday üretir</span>`}
+            <span class="kk">return</span> jdbc.query(${m==='hybrid'?'HYBRID_SQL':'SEMANTIC_SQL'}, HIT_MAPPER, ...);
+        });`}
+    }
+
+    <span class="kk">static final</span> String ${m==='hybrid'?'HYBRID_SQL':m==='vector'?'SEMANTIC_SQL':'KEYWORD_SQL'} = <span class="st2">"""</span>
+${sem}${m==='hybrid'?',':''}${m==='vector'?'':`${m==='hybrid'?' ':'        WITH '}keyword AS (
+            SELECT id, RANK() OVER (ORDER BY ts_rank_cd(tsv, query) DESC) AS rank
+            FROM kb_chunks, plainto_tsquery(<span class="st2">'turkish'</span>, ?) query
+            WHERE tenant_id = ? AND tsv @@ query          <span class="cm">-- GIN; ${m==='keyword'?'<span class="bad">tek başına: bütün kökler geçmeli</span>':'bütün kökler geçmeli'}</span>
+            ORDER BY ts_rank_cd(tsv, query) DESC
+            LIMIT ?
+        )`}${m==='hybrid'?`, fused AS (
+            SELECT COALESCE(s.id, k.id) AS id,
+                   COALESCE(1.0 / (? + s.rank), 0.0) + COALESCE(1.0 / (? + k.rank), 0.0) AS score,
+                   s.rank AS semantic_rank
+            FROM semantic_ranked s
+            FULL OUTER JOIN keyword k ON s.id = k.id
+            ORDER BY score DESC, s.rank NULLS LAST, id     <span class="cm">-- eşit puanda sıra belirli olsun</span>
+            LIMIT ?
+        )
+        SELECT c.id, c.source_id, c.heading, c.content, f.score
+        FROM fused f JOIN kb_chunks c USING (id)
+        ORDER BY f.score DESC, f.semantic_rank NULLS LAST, f.id`:m==='vector'?`
+        SELECT c.id, c.source_id, c.heading, c.content
+        FROM semantic_ranked s JOIN kb_chunks c USING (id)
+        ORDER BY s.rank LIMIT ?                          <span class="cm">-- <span class="bad">kodlar ve numaralar için kelime kolu yok</span></span>`:`
+        SELECT c.id, c.source_id, c.heading, c.content
+        FROM keyword k JOIN kb_chunks c USING (id)
+        ORDER BY k.rank LIMIT ?`}
+        <span class="st2">"""</span>;
+}`;
+  const ddl=`<span class="kk">CREATE TABLE</span> kb_chunks (
+    id               bigserial <span class="kk">PRIMARY KEY</span>,
+    tenant_id        int    <span class="kk">NOT NULL</span>,                                  <span class="cm">-- çalışma alanı</span>
+    source_id        bigint <span class="kk">NOT NULL REFERENCES</span> kb_sources(id) <span class="kk">ON DELETE CASCADE</span>,
+    chunk_no         int    <span class="kk">NOT NULL</span>,
+    heading          text,
+    content          text   <span class="kk">NOT NULL</span>,
+    tsv              tsvector <span class="kk">GENERATED ALWAYS AS</span>
+                     (to_tsvector(<span class="st2">'turkish'</span>, coalesce(heading, '') || ' ' || content)) <span class="kk">STORED</span>,
+    embedding        vector(${DIMS}) <span class="kk">NOT NULL</span>,
+    embedding_model  text   <span class="kk">NOT NULL</span>,                                  <span class="cm">-- '${MODEL_TAG}'</span>
+    created_at       timestamptz <span class="kk">NOT NULL DEFAULT</span> now()
+);
+<span class="kk">CREATE INDEX</span> kb_chunks_embedding_idx <span class="kk">ON</span> kb_chunks
+    <span class="kk">USING</span> hnsw (embedding vector_cosine_ops);                 <span class="cm">-- sorgu &lt;=&gt; kullanıyor: cosine_ops şart</span>
+<span class="kk">CREATE INDEX</span> kb_chunks_tsv_idx <span class="kk">ON</span> kb_chunks <span class="kk">USING</span> gin (tsv);
+<span class="kk">CREATE INDEX</span> kb_chunks_tenant_idx <span class="kk">ON</span> kb_chunks (tenant_id);`;
+  const job=`<span class="an">@Scheduled</span>(fixedDelay = 1000)                                 <span class="cm">// ayrı süreç: ingest_jobs tablosunu dinler</span>
+<span class="kk">public void</span> poll() {
+    <span class="cm">// QUEUED işi ya da heartbeat_at'i 2 dakikadır yenilenmeyen RUNNING işi alır: worker çöktüyse iş takılı kalmaz</span>
+    jobs.claimNext().ifPresent(<span class="kk">this</span>::ingest);                  <span class="cm">// FOR UPDATE SKIP LOCKED: iki worker aynı işi almaz</span>
+}
+
+<span class="kk">void</span> ingest(IngestJob job) {
+    <span class="kk">if</span> (job.attempts() &gt; MAX_ATTEMPTS) {                       <span class="cm">// her denemede çöken iş sonsuza kadar geri alınmasın</span>
+        jobs.markFailed(job.id(), <span class="st2">"too many attempts"</span>);
+        sources.markReady(job.sourceId());
+        <span class="kk">return</span>;
+    }
+    <span class="kk">try</span> {
+        Resource pdf = files.load(job.fileKey());
+        List&lt;Document&gt; pages  = <span class="kk">new</span> PagePdfDocumentReader(pdf).get();   <span class="cm">// sayfa başına bir Document</span>
+        List&lt;Document&gt; chunks = <span class="kk">new</span> TokenTextSplitter(160, 200, 10, 10000, <span class="kk">true</span>).apply(pages);
+        PdfOutline outline = PdfOutline.read(pdf);                                   <span class="cm">// PDF yer imleri: bölüm adları ve sayfaları</span>
+        List&lt;String&gt; headings = chunks.stream().map(outline::headingOf).toList();  <span class="cm">// "s. 9 · Modemi fiber prizine bağlama"; splitter başlık bilmez</span>
+        jobs.updateStage(job.id(), <span class="st2">"CHUNKING"</span>, 0);                       <span class="cm">// stage, embedded ve heartbeat_at'i yazar; GET /ingest-jobs/{id} bunları okur</span>
+        List&lt;<span class="kk">float</span>[]&gt; vectors = <span class="kk">new</span> ArrayList&lt;&gt;();
+        <span class="kk">for</span> (List&lt;Document&gt; batch : Lists.partition(chunks, 96)) {     <span class="cm">// toplu istek: 214 parça → 3 çağrı</span>
+            vectors.addAll(embeddingModel.embed(batch.stream().map(Document::getText).toList()));
+            jobs.updateStage(job.id(), <span class="st2">"EMBEDDING"</span>, vectors.size());
+        }
+        jobs.updateStage(job.id(), <span class="st2">"WRITING"</span>, vectors.size());
+        tx.executeWithoutResult(status -&gt; {                           <span class="cm">// eskiyi sil + yeniyi yaz: tek transaction</span>
+            jdbc.update(<span class="st2">"DELETE FROM kb_chunks WHERE source_id = ?"</span>, job.sourceId());
+            jdbc.batchUpdate(INSERT_CHUNK, rows(job.tenantId(), job.sourceId(), chunks, headings, vectors, <span class="st2">"${MODEL_TAG}"</span>));
+            jdbc.update(<span class="st2">"UPDATE kb_sources SET version = ?, status = 'READY', chunk_count = ? WHERE id = ?"</span>,
+                    job.version(), chunks.size(), job.sourceId());
+            jdbc.update(<span class="st2">"UPDATE ingest_jobs SET status = 'DONE', stage = 'DONE', finished_at = now() WHERE id = ?"</span>, job.id());
+        });
+    } <span class="kk">catch</span> (Exception e) {
+        jobs.markFailed(job.id(), e.getMessage());                     <span class="cm">// ingest_jobs.status = 'FAILED'; rollback oldu, eski parçalar yerinde</span>
+        sources.markReady(job.sourceId());                             <span class="cm">// kb_sources INGESTING'de kalmasın: eski sürümle READY</span>
+    }
+}`;
+  const guard=`<span class="cm">// Bu serviste YOK: her aramada sorgu modelini parçaların yazıldığı modelle karşılaştır</span>
+<span class="kk">private volatile</span> Set&lt;String&gt; indexedTags;                 <span class="cm">// model geçişinde, yeni kolon devreye alınınca yeniden yüklenir</span>
+
+<span class="an">@EventListener</span>(ApplicationReadyEvent.<span class="kk">class</span>)
+<span class="kk">void</span> loadIndexedModels() {
+    indexedTags = Set.copyOf(jdbc.queryForList(<span class="st2">"SELECT DISTINCT embedding_model FROM kb_chunks"</span>, String.<span class="kk">class</span>));
+}
+
+<span class="kk">float</span>[] embedQuery(String query) {                  <span class="cm">// açılışta değil sorguda: config refresh'ten sonra da yakalar</span>
+    String tag = props.queryModelTag();
+    <span class="kk">if</span> (!indexedTags.equals(Set.of(tag)))
+        <span class="kk">throw new</span> IllegalStateException(<span class="st2">"query model "</span> + tag + <span class="st2">" != indexed "</span> + indexedTags);
+    <span class="kk">return</span> embeddingModel.embed(query);
+}`;
+  $('p-code').innerHTML=`<div class="code">
+    <p>${m==='keyword'?'<b>Keyword:</b> sadece PostgreSQL full-text search. Hızlı ve açıklanabilir, ama müşteri dokümandaki kelimeyi kullanmazsa hiçbir şey bulmaz.':m==='vector'?'<b>Vector:</b> sadece embedding ile anlam araması. Eşanlamlıları bulur, ama "TS-999" gibi bir kodu benzer kodlardan güvenilir şekilde ayıramaz.':'<b>Hybrid:</b> iki kol aynı SQL\'de çalışır, FULL OUTER JOIN + RRF ile birleşir. Kalıp pgvector-python\'daki hybrid search örneğinden uyarlandı; tenant filtresi, MATERIALIZED ve SET LOCAL eklendi.'} ${m!=='keyword'?(it?'<b>iterative_scan</b> açık: filtreden geçen satır LIMIT\'e ulaşana kadar index taramaya devam eder.':'<b>post-filter:</b> index en fazla ef_search aday üretir, WHERE sonradan uygulanır; seçici filtrede LIMIT dolmaz.'):''}</p>
+    <h4>application.yml</h4><pre>${yml}</pre>
+    <h4>HybridRetriever.java</h4><pre>${java}</pre>
+    <h4>Şema (Flyway V12)</h4><pre>${ddl}</pre>
+    <h4>SourceIngestJob.java · yazma anı</h4><pre>${job}</pre>
+    <p>Parçalar yazma anında, arama metni okuma anında embed edilir; ikisi aynı modelle yapılmazsa vector'ler karşılaştırılamaz. Her satırdaki <b>embedding_model</b> kolonu bu yüzden var:</p>
+    <pre>${guard}</pre>
+    <p><b>Model geçişi:</b> yeni modelin vector'leri aynı kolona yazılmaz; yazılırsa iki modelin vector'ü aynı index'te karışır. Yeni bir kolon (ya da tablo) ve onun HNSW index'i kurulur, bütün parçalar arka planda yeniden embed edilir; bitince sorgu modeli ve kolon birlikte değiştirilir. Boyutu farklı bir modelde (ör. text-embedding-3-large, 3.072) kolon tipi de değişir: HNSW, vector tipinde en fazla 2.000 boyutu index'ler; üstü için halfvec (en fazla 4.000) gerekir.</p></div>`;
+}
+
+/* ================= KONTROLLER ================= */
+function renderToggles(){
+  ['kw','vec','hyb'].forEach((k,i)=>$('m-'+k).setAttribute('aria-pressed',sys.mode===['keyword','vector','hybrid'][i]));
+  $('f-post').setAttribute('aria-pressed',sys.filter==='post');$('f-iter').setAttribute('aria-pressed',sys.filter==='iter');
+  const ef=$('t-ef');ef.classList.toggle('arm',sys.ef!==40);ef.classList.toggle('blue',sys.ef===40);$('t-ef-l').textContent=`ef_search: ${sys.ef}`;
+  const md=$('t-model');md.classList.toggle('down',sys.wrong);$('t-model-l').textContent=sys.wrong?'sorgu modeli: ada-002 (!)':'sorgu modeli: 3-small';
+  const s=$('t-step');s.classList.toggle('off',!sys.stepMode);$('t-step-l').textContent=sys.stepMode?'adım adım':'otomatik';
+}
+function setMode(m){if(sys.mode===m)return;sys.mode=m;log('INFO','search-api','c.y.search.config.RetrievalProperties',`search.retrieval.mode=${m}`);afterCfg();}
+function setFilter(f){if(sys.filter===f)return;sys.filter=f;log('INFO','search-api','c.y.search.config.RetrievalProperties',`search.pgvector.iterative-scan=${f==='iter'?'relaxed_order':'off'}`);afterCfg();}
+function afterCfg(){renderToggles();renderMap();if(store.page==='arama')renderPage();if(!busy&&!queue.length)idleCheck();}
+$('m-kw').onclick=()=>setMode('keyword');$('m-vec').onclick=()=>setMode('vector');$('m-hyb').onclick=()=>setMode('hybrid');
+$('f-post').onclick=()=>setFilter('post');$('f-iter').onclick=()=>setFilter('iter');
+$('t-ef').onclick=()=>{sys.ef=sys.ef===40?100:40;log('INFO','search-api','c.y.search.config.RetrievalProperties',`search.pgvector.ef-search=${sys.ef} (SET LOCAL hnsw.ef_search per query)`);afterCfg();};
+$('t-model').onclick=()=>{sys.wrong=!sys.wrong;
+  log('INFO','search-api','o.s.b.c.config.ConfigDataEnvironment',`spring.ai.openai.embedding.options.model=${sys.wrong?WRONG:MODEL} (refresh)`);afterCfg();};
+$('t-step').onclick=()=>{sys.stepMode=!sys.stepMode;if(!sys.stepMode)flushQueue();renderToggles();};
+$('reset').onclick=()=>{gen++;queue.length=0;$('next').disabled=true;clearInterval(pollT);
+  Object.assign(sys,freshSys());busy=false;selNet=null;
+  ORIG302.forEach(o=>Object.assign(CH[o.k],{id:o.id,no:o.no,t:o.t}));delete CH.k5;
+  SRC[302]=Object.assign(SRC[302],{chunks:212,ver:'3.1',detail:'48 sayfa · v3.1',synced:'12 Eki 2026',ts:'2026-10-12 14:31:40+03',file:'Dalga-T5-Kullanim-Kilavuzu-v3.1.pdf'});
+  Object.assign(store,{q:'',input:'',result:null,searching:false,uploading:null});store.log=store.log.filter(x=>!x.mine);
+  $('logs').innerHTML='';Object.keys(unseen).forEach(k=>unseen[k]=0);$('modal').hidden=true;
+  $('wrk-s').textContent='boşta';$('n-wrk').classList.remove('hot');
+  $('n-no').textContent='HAZIR';$('n-title').textContent='Soldaki bilgi bankasında bir arama yap';$('n-desc').textContent='Örneğin "Şifremi unuttum, online işlemlere giremiyorum". Her adım burada durup açıklanacak. Bu konsol tarayıcıda çalışan bir simülasyon; önerilen üç aramanın sayıları Docker\'da ölçüldü.';
+  hot([]);renderToggles();renderAll();renderNet();go('arama');};
+
+/* ================= ÜRÜN (sol taraf) ================= */
+function setUrl(path){$('url').innerHTML=`<b>app.yanit.io</b>${esc(path)}`;}
+function go(page,arg,hl){
+  store.page=page;store.arg=arg??null;store.hl=hl??null;
+  setUrl({arama:'/w/dalga/arama'+(store.q?`?q=${store.q.replace(/ /g,'+')}`:''),   // Chrome adres çubuğu gibi: Türkçe karakterler çözülmüş
+    kaynaklar:'/w/dalga/kaynaklar',kaynak:`/w/dalga/kaynaklar/${arg}${hl?`?parca=${CH[hl]?CH[hl].id:hl}`:''}`,kayitlar:'/w/dalga/arama-kayitlari'}[page]);
+  document.querySelectorAll('.side [data-nav]').forEach(b=>b.classList.toggle('on',b.dataset.nav===page||(page==='kaynak'&&b.dataset.nav==='kaynaklar')));
+  $('page').scrollTop=0;renderPage();
+  if(page==='kaynaklar')api.sources();if(page==='kaynak')api.source(arg);if(page==='kayitlar')api.searches();
+}
+function toast(html){const t=document.createElement('div');t.className='toast';t.innerHTML=html;$('toasts').appendChild(t);setTimeout(()=>t.remove(),3200);}
+const ICON={
+  pdf:'<svg width="30" height="34" viewBox="0 0 30 34"><path d="M3 1h17l7 7v24a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" fill="#fff" stroke="#c9d1d5"/><path d="M20 1v7h7" fill="#eef1f2" stroke="#c9d1d5"/><rect x="5" y="19" width="20" height="8" rx="2" fill="#c23a2b"/><text x="15" y="25.3" font-size="6.2" font-weight="700" fill="#fff" text-anchor="middle" font-family="Source Sans 3, sans-serif">PDF</text></svg>',
+  info:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></svg>',
+  search:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#7c878e" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+};
+function resultHtml(r,k,i){const c=CH[k],f=r.fused.find(x=>x.k===k);
+  const tags=[f.vr&&'<span class="mt a">anlam</span>',f.kr&&'<span class="mt k">kelime</span>'].filter(Boolean).join('');
+  return `<button class="res" data-chunk="${k}" aria-haspopup="dialog"><span class="rn">${i+1}</span><span class="rb"><span class="rt"><b>${esc(c.head)}</b>${tags}</span><span class="rs">${snippet(r.q,k,!!f.kr)}</span><small>${esc(SRC[c.src].name)} · parça ${c.no} · #${c.id}</small></span></button>`;}
+function renderPage(){
+  const pg=$('page');const P=store.page;
+  if(P==='arama'){
+    const r=store.result,modeTxt={hybrid:'Hybrid (kelime + anlam)',vector:'Anlam (vector)',keyword:'Kelime'}[sys.mode];
+    pg.innerHTML=`<div class="ph"><div><h1>Bilgi bankası</h1><p>Müşterinin sorusunu kendi kelimeleriyle yaz; ${TENANT_NAME}'in yardım merkezi, modem kılavuzu, hata kodları ve çözülmüş talepleri içinde aranır. Yardım merkezindeki arama kutusu da aynı servisi kullanır.</p></div></div>
+    <form class="sbox" id="cform" role="search">${ICON.search}<input id="ask" placeholder="Örn. modemde kırmızı ışık yanıyor" autocomplete="off" value="${esc(store.input)}"><button id="send" type="submit" ${busy?'disabled':''}>Ara</button></form>
+    <div class="sugg"><span>Sık aranan:</span>${SUGG.map(q=>`<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+    <div class="cfg"><span>Arama: <b>${modeTxt}</b></span><span>Sonuç: <b>en fazla ${K}</b></span><span class="${sys.wrong?'w':''}">Embedding: <b>${sys.wrong?WRONG:MODEL}</b></span></div>
+    ${store.searching?`<div class="rhead"><b>“${esc(store.q)}”</b><span>aranıyor…</span></div><div class="rlist">${'<div class="rsk"><i></i><i></i><i></i></div>'.repeat(3)}</div>`
+      :r?`<div class="rhead"><b>“${esc(r.q)}”</b><span>${r.hits.length} sonuç</span></div>${r.hits.length?`<div class="rlist">${r.hits.map((k,i)=>resultHtml(r,k,i)).join('')}</div>`:`<div class="empty"><b>“${esc(r.q)}” için sonuç bulunamadı</b><span>Farklı kelimelerle aramayı dene.</span></div>`}`
+      :`<div class="empty soft"><b>Henüz arama yapılmadı</b><span>Sık arananlardan birini seç ya da kendi aramanı yaz.</span></div>`}`;
+    $('cform').addEventListener('submit',ev=>{ev.preventDefault();const q=$('ask').value.trim();if(q&&!busy)api.search(q);});
+    $('ask').addEventListener('input',ev=>{store.input=ev.target.value;});
+  }
+  else if(P==='kaynaklar'){
+    const I=sys.ing;
+    pg.innerHTML=`<div class="crumbs"><span>Dalga Fiber</span><span>›</span><b>Bilgi kaynakları</b></div>
+    <div class="ph"><div><h1>Bilgi kaynakları</h1><p>Arama sadece buradaki içerikte yapılır. Her kaynak parçalara bölünür ve ${MODEL} ile embed edilir; web sitesi ve talep geçmişi her gece senkronlanır.</p></div></div>
+    <table class="tbl"><thead><tr><th>Kaynak</th><th>Tür</th><th>Parça</th><th>Durum</th><th>Son senkron</th></tr></thead><tbody>${
+      Object.entries(SRC).map(([id,s])=>{const run=store.uploading==+id&&I&&!I.done;
+        return `<tr class="click ${I&&I.src==+id&&I.done?'hl':''}" data-open="${id}"><td><b>${esc(s.name)}</b><small>${esc(s.detail)}</small>${s.kind==='PDF'&&!run&&s.ver==='3.1'?`<div style="margin-top:6px"><button class="btn out sm" data-upload="${id}" ${busy?'disabled':''}>Yeni sürüm yükle</button></div>`:''}${run?`<div class="prog"><span>${{QUEUED:'Sıraya alındı',PARSING:'PDF okunuyor',CHUNKING:'Parçalara bölünüyor',EMBEDDING:`Embed ediliyor · ${I.emb}/214 parça`,WRITING:'Yazılıyor'}[I.stage]||''}</span><span class="bar"><i style="width:${I.pct}%"></i></span></div>`:''}</td><td>${s.kind}</td><td class="num">${nTr(s.chunks)}</td><td>${run?'<span class="st run"><span class="spin"></span>İşleniyor</span>':'<span class="st ok">Hazır</span>'}</td><td class="num">${s.synced}</td></tr>`;}).join('')}</tbody></table>
+    <div class="callout">${ICON.info}<span>Toplam ${nTr(tenantRows())} parça · embedding modeli <b>${MODEL_TAG}</b>. Modeli değiştirirsen bütün parçalar yeni modelle, ayrı bir kolona yeniden embed edilir; geçiş bitene kadar arama eski modelin vector'leriyle çalışır.</span></div>`;
+  }
+  else if(P==='kaynak'){
+    const id=+store.arg,s=SRC[id],chunks=srcChunks(id);
+    const hlId=store.hl&&CH[store.hl]?CH[store.hl].id:null;
+    const list=chunks.slice(0,6);if(hlId&&!list.find(c=>c.id===hlId)){const c=chunks.find(c=>c.id===hlId);if(c)list.unshift(c);}
+    pg.innerHTML=`<div class="crumbs"><button data-nav="kaynaklar">Bilgi kaynakları</button><span>›</span><b>${esc(s.name)}</b></div>
+    <div class="ph"><div><h1>${esc(s.name)}</h1><p>${esc(s.detail)}</p></div>${s.kind==='PDF'&&s.ver==='3.1'?`<button class="btn out sm" data-upload="${id}" ${busy?'disabled':''}>Yeni sürüm yükle</button>`:''}</div>
+    <div class="meta"><div><span>Tür</span><b>${s.kind}</b></div><div><span>İçerik</span><b>${s.unit}</b></div><div><span>Parça</span><b>${nTr(s.chunks)}</b></div><div><span>Embedding modeli</span><b>${MODEL_TAG}</b></div><div><span>Parçalama</span><b>TokenTextSplitter · 160 token</b></div><div><span>Son senkron</span><b>${s.synced}</b></div></div>
+    ${hlId?`<div class="callout w">${ICON.info}<span>Arama sonucundan açılan parça vurgulandı: <b>#${hlId}</b>.</span></div>`:''}
+    <table class="tbl"><thead><tr><th>#</th><th>Parça</th><th>Token</th></tr></thead><tbody>${list.map(c=>`<tr class="${c.id===hlId?'hl':''}"><td class="num">${c.no}</td><td><b>${esc(c.head)}</b><span class="tx${c.id===hlId?' full':''}">${esc(c.id===hlId?c.text:preview(c.text))}</span><small>chunk ${c.id}</small></td><td class="num">${c.t}</td></tr>`).join('')}
+      <tr><td></td><td><small>… ${nTr(s.chunks-list.length)} parça daha</small></td><td></td></tr></tbody></table>`;
+  }
+  else if(P==='kayitlar'){
+    const rows=store.log.slice().reverse();
+    pg.innerHTML=`<div class="ph"><div><h1>Arama kayıtları</h1><p>Yardım merkezinden ve temsilci panelinden yapılan aramalar. Sonuçsuz ve ${K}'dan az sonuç dönen aramalar, bulunamayan içeriğin ilk işaretidir.</p></div></div>
+    <div class="kpis"><div class="kpi"><span>Bugün</span><b>3.412</b> <small>arama</small></div><div class="kpi"><span>Sonuçsuz arama</span><b>${pct(6.8)}</b> <small>son 7 gün</small></div><div class="kpi"><span>${K}'dan az sonuç dönen</span><b>${pct(4.1)}</b> <small>son 7 gün</small></div></div>
+    <table class="tbl"><thead><tr><th>Saat</th><th>Nereden</th><th>Arama</th><th>Sonuç</th><th>İlk sonuç</th></tr></thead><tbody>${rows.map(x=>`<tr class="${x.mine?'hl':''}"><td class="num">${x.t}</td><td>${x.ch}</td><td>${esc(x.q)}</td><td>${x.n===0?'<span class="st bad">Sonuçsuz</span>':x.n<K?`<span class="st run">${x.n}</span>`:`<span class="st ok">${x.n}</span>`}</td><td>${x.top?esc(x.top):'—'}</td></tr>`).join('')}</tbody></table>`;
+  }
+  const few=store.log.filter(x=>x.mine&&x.n<K).length;
+  $('log-cnt').textContent=store.log.length;$('log-cnt').classList.toggle('r',few>0);
+}
+function openUpload(id){
+  const s=SRC[id];
+  $('modal').innerHTML=`<div class="dlg" role="dialog" aria-label="Yeni sürüm yükle"><h3>Yeni sürüm yükle</h3><p>${esc(s.name)} · şu an v${s.ver}, ${s.chunks} parça. Yeni sürüm hazır olana kadar arama mevcut sürümün parçalarını döndürür.</p>
+    <div class="file">${ICON.pdf}<span><b>Dalga-T5-Kullanim-Kilavuzu-v3.2.pdf</b><small>2,4 MB · 48 sayfa · İndirilenler klasöründen seçildi</small></span></div>
+    <div class="row"><button class="btn out" data-close="1">İptal</button><button class="btn" id="up-go" data-go="${id}">Yükle</button></div></div>`;
+  $('modal').hidden=false;
+}
+let modalOpener=null;
+function openChunk(k,opener){
+  const r=store.result,c=CH[k];if(!c)return;const f=r&&r.fused.find(x=>x.k===k);
+  const tags=f?[f.vr&&'<span class="mt a">anlam</span>',f.kr&&'<span class="mt k">kelime</span>'].filter(Boolean).join(''):'';
+  $('modal').innerHTML=`<div class="dlg chunk" role="dialog" aria-modal="true" aria-labelledby="ch-title"><div class="dhead"><h3 id="ch-title">${esc(c.head||'Başlıksız parça')}</h3><button class="x" data-close="1" aria-label="Kapat">×</button></div>
+    <div class="dtags">${tags}<small>${esc(SRC[c.src].name)} · parça ${c.no} · #${c.id}</small></div>
+    <div class="ctext" tabindex="0">${markTerms(r?r.q:'',c.text,!!(f&&f.kr))}</div>
+    <div class="row"><button class="btn out" data-close="1">Kapat</button><button class="btn" data-src="${c.src}" data-hl="${k}">Kaynakta göster</button></div></div>`;
+  modalOpener=opener||null;$('modal').hidden=false;$('modal').querySelector('.x').focus();
+}
+function closeModal(){$('modal').hidden=true;const o=modalOpener;modalOpener=null;if(o&&o.isConnected)o.focus();}
+$('modal').addEventListener('click',e=>{const b=e.target.closest('button');if(e.target.id==='modal'||(b&&b.dataset.close)){closeModal();return;}
+  if(b&&b.dataset.src){modalOpener=null;$('modal').hidden=true;go('kaynak',+b.dataset.src,b.dataset.hl);return;}
+  if(b&&b.dataset.go)api.upload(+b.dataset.go);});
+$('modal').addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.preventDefault();closeModal();return;}
+  if(e.key!=='Tab')return;const fs=[...$('modal').querySelectorAll('button:not([disabled]),[tabindex="0"]')];if(!fs.length)return;
+  const first=fs[0],last=fs[fs.length-1];
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+});
+document.querySelector('.side').addEventListener('click',e=>{const b=e.target.closest('button[data-nav]');if(b)go(b.dataset.nav);});
+$('go-home').onclick=()=>go('arama');
+$('page').addEventListener('click',e=>{
+  const t=e.target.closest('button,tr[data-open]');if(!t)return;const d=t.dataset;
+  if(d.q){if(busy)return;api.search(d.q);return;}
+  if(d.chunk){openChunk(d.chunk,t);return;}
+  if(d.upload){e.stopPropagation();if(!busy)openUpload(+d.upload);return;}
+  if(d.open){go('kaynak',+d.open);return;}
+  if(d.nav){go(d.nav);return;}
+});
+
+/* ================= SENARYOLAR (#senaryo=mutlu|problem-1|cozum-1|problem-2|cozum-2|kaynak) =================
+   Anlatım akışını (§7) arayüzdeki gerçek tıklamalarla otomatik oynatır: video kaydı ve otomatik test için. */
+const SCENARIOS={
+  'mutlu':{title:'Mutlu yol: Hybrid + iterative scan',mode:'hybrid',filter:'iter',q:TOPICS.parola.q,open:true},
+  'problem-1':{title:'Ders 1 · problem: sadece kelime araması',mode:'keyword',filter:'iter',q:TOPICS.parola.q},
+  'cozum-1':{title:'Ders 1 · çözüm: önce sadece anlam, sonra Hybrid',mode:'vector',filter:'iter',q:TOPICS.ts999.q,then:'m-hyb'},
+  'problem-2':{title:'Ders 2 · problem: HNSW + WHERE (post-filter)',mode:'hybrid',filter:'post',q:TOPICS.nakil.q},
+  'cozum-2':{title:'Ders 2 · çözüm: iterative index scan',mode:'hybrid',filter:'iter',q:TOPICS.nakil.q},
+  'kaynak':{title:'Yazma anı: kılavuzun yeni sürümünü yükle',upload:302},
+};
+const until=async(fn,max=40000)=>{const t0=Date.now();while(!fn()&&Date.now()-t0<max)await wait(100);};
+async function typeAndSend(q){
+  if(store.page!=='arama'){$('nav-arama').click();await wait(400);}
+  const inp=$('ask');inp.focus();inp.value='';
+  for(const ch of q){inp.value+=ch;store.input=inp.value;await wait(32);}
+  await wait(300);$('send').click();await wait(50);await until(()=>!busy);
+}
+async function runScenario(id){
+  const sc=SCENARIOS[id];if(!sc)return;
+  if(sys.stepMode)$('t-step').click();
+  // ayar tıklamaları konsol metnini yeniler: senaryo başlığı onlardan sonra yazılır
+  if(sc.mode)$({keyword:'m-kw',vector:'m-vec',hybrid:'m-hyb'}[sc.mode]).click();
+  if(sc.filter)$(sc.filter==='post'?'f-post':'f-iter').click();
+  $('n-no').textContent='SENARYO';$('n-title').textContent=sc.title;$('n-desc').textContent='Akış kullanıcı arayüzünden otomatik oynatılıyor.';
+  if(sc.upload){await wait(900);$('nav-kaynaklar').click();await wait(1200);
+    document.querySelector(`[data-upload="${sc.upload}"]`).click();await wait(1000);$('up-go').click();await wait(50);await until(()=>!busy);
+    await wait(1200);const row=document.querySelector(`tr[data-open="${sc.upload}"]`);if(row)row.click();return;}
+  await wait(1300);
+  await typeAndSend(sc.q);
+  if(sc.then){await wait(2200);$(sc.then).click();await wait(700);await typeAndSend(sc.q);}
+  if(sc.open){await wait(1800);const b=document.querySelector('.rlist .res');if(b)b.click();}
+}
+
+/* ================= BAŞLAT ================= */
+renderToggles();renderAll();renderNet();go('arama');showTab('net');
+log('INFO','search-api','c.y.search.SearchApiApplication','Started SearchApiApplication in 3.12 seconds (process running for 3.6)');
+log('INFO','search-api','com.zaxxer.hikari.HikariDataSource','HikariPool-1 - Start completed.');
+log('INFO','search-api','c.y.search.config.RetrievalProperties',`retrieval mode=hybrid limit=${K} branch-limit=${BRANCH} rrf-k=${RRF_K} · hnsw.ef_search=40 iterative_scan=relaxed_order max_scan_tuples=${MAX_SCAN}`);
+log('INFO','ingest-worker','c.y.ingest.IngestWorkerApplication','Started IngestWorkerApplication in 2.71 seconds (process running for 3.1)');
+const scm=location.hash.match(/senaryo=([\w-]+)/);if(scm)setTimeout(()=>runScenario(scm[1]),600);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1528 @@
+# AMAÇ: Backend ile frontend arasındaki REST API sözleşmesi. Tek doğru kaynak.
+# Planner günceller; backend-coder buna göre endpoint yazar, frontend-coder buna göre çağrı yapar, qa uyumu kontrol eder.
+openapi: 3.1.0
+info:
+  title: Embedding ve pgvector API
+  version: 0.5.0
+tags:
+  - name: Embeddings
+    description: Turns a text into an embedding vector with the local embedding model (Ollama)
+  - name: Workspaces
+    description: |
+      Workspaces (tenants). There is no endpoint to create one. A database migration of API 0.5.0 runs once per
+      database: it deletes all data of an earlier install (workspaces, sources, chunks, ingestion jobs, search events)
+      and creates a single empty workspace (id 42, "Belgelerim"). On a clean install there is nothing to delete.
+  - name: Sources
+    description: Knowledge sources of a workspace, their file uploads and chunks
+  - name: Ingestion
+    description: Background ingestion jobs (parse, chunk, embed, write)
+  - name: Search
+    description: Keyword, vector and hybrid (RRF) search over the chunks of a workspace, and the search log
+paths:
+  /api/embeddings:
+    post:
+      tags: [Embeddings]
+      operationId: embedText
+      summary: Embed a single text with the configured local embedding model
+      description: |
+        Strips leading and trailing whitespace from `text`, validates it, sends it to the configured
+        Ollama model and returns the vector. Nothing is stored. The request is not sent to Ollama
+        when validation fails.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbedTextRequest'
+            examples:
+              turkish:
+                value:
+                  text: Yıllık izin kaç gün?
+      responses:
+        '200':
+          description: Text embedded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbeddingResponse'
+              examples:
+                bgeM3:
+                  summary: Shortened; a real bge-m3 response has 1024 numbers in `embedding`
+                  value:
+                    embeddingModel: bge-m3
+                    dimensions: 1024
+                    embedding: [-0.0412, 0.0187, -0.0533]
+                    durationMs: 85
+        '400':
+          description: |
+            `VALIDATION_FAILED`: `text` is missing, empty, whitespace only, or longer than 2000 characters after stripping
+            (`violations[].field` = `text`).
+            `BAD_REQUEST`: request body is missing or is not valid JSON.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              examples:
+                blankText:
+                  value:
+                    type: https://embedding-pgvector.example/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: Request validation failed
+                    instance: /api/embeddings
+                    errorCode: VALIDATION_FAILED
+                    violations:
+                      - field: text
+                        message: must not be blank
+                tooLongText:
+                  value:
+                    type: https://embedding-pgvector.example/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: Request validation failed
+                    instance: /api/embeddings
+                    errorCode: VALIDATION_FAILED
+                    violations:
+                      - field: text
+                        message: size must be at most 2000 characters
+                malformedJson:
+                  value:
+                    type: https://embedding-pgvector.example/errors/bad-request
+                    title: Bad Request
+                    status: 400
+                    detail: Failed to read request
+                    instance: /api/embeddings
+                    errorCode: BAD_REQUEST
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/EmbeddingUnavailable'
+
+  /api/workspaces:
+    get:
+      tags: [Workspaces]
+      operationId: listWorkspaces
+      summary: List workspaces with their source and chunk counts, ordered by id
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - name: size
+          in: query
+          required: false
+          description: Page size
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: One page of workspaces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResponseWorkspaceResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspaces/{workspaceId}:
+    get:
+      tags: [Workspaces]
+      operationId: getWorkspace
+      summary: Get one workspace with its source and chunk counts
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '200':
+          description: The workspace
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceResponse'
+              examples:
+                cleanInstall:
+                  summary: A clean install, before the first upload
+                  value:
+                    workspaceId: 42
+                    name: Belgelerim
+                    sourceCount: 0
+                    chunkCount: 0
+                    embeddingModels: []
+                oneDocument:
+                  summary: After the sample document was ingested
+                  value:
+                    workspaceId: 42
+                    name: Belgelerim
+                    sourceCount: 1
+                    chunkCount: 24
+                    embeddingModels: [bge-m3@1024]
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspaces/{workspaceId}/sources:
+    get:
+      tags: [Sources]
+      operationId: listSources
+      summary: List the sources of a workspace, ordered by id
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: One page of sources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResponseSourceResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Sources]
+      operationId: createSource
+      summary: Create a source from an uploaded file and start its first ingestion job
+      description: |
+        Creates the source in `INGESTING` status and an ingestion job in `QUEUED` stage in one transaction,
+        then returns without waiting. The job runs in the background; poll the `Location` URL.
+        Checks, in this order: request validation (400), file size (413), workspace exists (404),
+        file type and encoding by extension and content (415), embedding model of the workspace (409),
+        source limit and name (409).
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, file]
+              properties:
+                name:
+                  type: string
+                  description: |
+                    Source name. Stripped; 2-80 characters; unique in the workspace ignoring case.
+                    Always required here; when the user leaves the name empty, the web client sends the file name
+                    without its extension (e.g. `Atlaskap-Lojistik-Surec-El-Kitabi`).
+                  minLength: 2
+                  maxLength: 80
+                  example: Atlaskap-Lojistik-Surec-El-Kitabi
+                file:
+                  type: string
+                  format: binary
+                  description: |
+                    `.pdf`, `.txt`, `.md`, `.markdown` or `.csv` (extension ignoring case), not empty, at most 20 MB
+                    (20 971 520 bytes). PDF must contain `%PDF-` within its first 1024 bytes; text files must be UTF-8
+                    (a BOM is allowed) and must not contain NUL bytes.
+      responses:
+        '202':
+          $ref: '#/components/responses/IngestionAccepted'
+        '400':
+          $ref: '#/components/responses/UploadValidationFailed'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '409':
+          description: |
+            `SOURCE_NAME_TAKEN`: another source in the workspace has the same name ignoring case.
+            `SOURCE_LIMIT_REACHED`: the workspace already has 10 sources.
+            `EMBEDDING_MODEL_MISMATCH`: chunks of the workspace were embedded with a different model tag than the configured one.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '413':
+          $ref: '#/components/responses/FileTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedFile'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspaces/{workspaceId}/sources/{sourceId}:
+    get:
+      tags: [Sources]
+      operationId: getSource
+      summary: Get one source of a workspace
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/SourceId'
+      responses:
+        '200':
+          description: The source
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceResponse'
+              examples:
+                firstIngestionEmbedding:
+                  summary: The first upload is being embedded; the source has no searchable chunks yet
+                  value:
+                    sourceId: 10001
+                    workspaceId: 42
+                    name: Atlaskap-Lojistik-Surec-El-Kitabi
+                    kind: PDF
+                    version: null
+                    chunkCount: 0
+                    status: INGESTING
+                    syncedAt: null
+                    fileName: null
+                    createdAt: '2026-10-25T09:15:02.470Z'
+                    latestJob:
+                      jobId: 1
+                      workspaceId: 42
+                      sourceId: 10001
+                      version: null
+                      fileName: Atlaskap-Lojistik-Surec-El-Kitabi.pdf
+                      stage: EMBEDDING
+                      progress: 0.5
+                      embeddedChunks: 24
+                      totalChunks: 48
+                      errorCode: null
+                      createdAt: '2026-10-25T09:15:02.481Z'
+                      startedAt: '2026-10-25T09:15:02.530Z'
+                      finishedAt: null
+                      statusUrl: /api/workspaces/42/ingestion-jobs/1
+                firstIngestionFailed:
+                  summary: The first upload failed; the source never had a successful version
+                  value:
+                    sourceId: 10001
+                    workspaceId: 42
+                    name: Atlaskap-Lojistik-Surec-El-Kitabi
+                    kind: PDF
+                    version: null
+                    chunkCount: 0
+                    status: FAILED
+                    syncedAt: null
+                    fileName: null
+                    createdAt: '2026-10-25T09:15:02.470Z'
+                    latestJob:
+                      jobId: 1
+                      workspaceId: 42
+                      sourceId: 10001
+                      version: null
+                      fileName: Atlaskap-Lojistik-Surec-El-Kitabi.pdf
+                      stage: FAILED
+                      progress: 0.1
+                      embeddedChunks: 0
+                      totalChunks: 48
+                      errorCode: EMBEDDING_UNAVAILABLE
+                      createdAt: '2026-10-25T09:15:02.481Z'
+                      startedAt: '2026-10-25T09:15:02.530Z'
+                      finishedAt: '2026-10-25T09:15:04.102Z'
+                      statusUrl: /api/workspaces/42/ingestion-jobs/1
+        '404':
+          $ref: '#/components/responses/WorkspaceOrSourceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspaces/{workspaceId}/sources/{sourceId}/versions:
+    post:
+      tags: [Sources]
+      operationId: uploadSourceVersion
+      summary: Upload a new version of an existing source and start an ingestion job
+      description: |
+        Creates an ingestion job in `QUEUED` stage and sets the source to `INGESTING`, then returns without waiting.
+        Until the job commits, searches keep returning the old chunks. If the job fails, the source keeps its old
+        version and chunks and goes back to `READY` (or stays `FAILED` if it never had a successful version).
+        Checks, in this order: request validation (400), file size (413), workspace and source exist (404),
+        file type and encoding (415), file kind equals the source kind (409), embedding model of the workspace (409),
+        no active job for the source (409).
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/SourceId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Same rules as in `createSource`.
+                version:
+                  type: string
+                  description: Optional version label. Stripped; 1-40 characters. When missing or blank, the source version becomes null.
+                  maxLength: 40
+                  example: '3.2'
+      responses:
+        '202':
+          $ref: '#/components/responses/IngestionAccepted'
+        '400':
+          $ref: '#/components/responses/UploadValidationFailed'
+        '404':
+          $ref: '#/components/responses/WorkspaceOrSourceNotFound'
+        '409':
+          description: |
+            `INGESTION_IN_PROGRESS`: the source already has a job that is not `DONE` or `FAILED`.
+            `SOURCE_KIND_MISMATCH`: the file kind differs from the source kind, or the source kind
+            (`WEB_CRAWL`, `TICKET_EXPORT`) cannot be uploaded as a file.
+            `EMBEDDING_MODEL_MISMATCH`: chunks of the workspace were embedded with a different model tag than the configured one.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              examples:
+                inProgress:
+                  value:
+                    type: https://embedding-pgvector.example/errors/ingestion-in-progress
+                    title: Conflict
+                    status: 409
+                    detail: 'Source has an active ingestion job: 10001'
+                    instance: /api/workspaces/42/sources/10001/versions
+                    errorCode: INGESTION_IN_PROGRESS
+        '413':
+          $ref: '#/components/responses/FileTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedFile'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspaces/{workspaceId}/sources/{sourceId}/chunks:
+    get:
+      tags: [Sources]
+      operationId: listChunks
+      summary: List the chunks of a source ordered by chunkNo, then chunkId
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/SourceId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: One page of chunks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResponseChunkResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/WorkspaceOrSourceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspaces/{workspaceId}/sources/{sourceId}/chunks/{chunkId}:
+    get:
+      tags: [Sources]
+      operationId: getChunk
+      summary: Get one chunk of a source
+      description: |
+        Used to show a chunk that was opened from a search result, and by the chunk panel of the search page to
+        check that the chunk of a search hit still exists. A chunk is deleted when a new version of its source is
+        written, so an old chunk id answers `CHUNK_NOT_FOUND`.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/SourceId'
+        - name: chunkId
+          in: path
+          required: true
+          description: A value that is not a 64-bit integer (e.g. `abc`) answers 400 `BAD_REQUEST`; an unknown id answers 404.
+          schema:
+            type: integer
+            format: int64
+          example: 1380
+      responses:
+        '200':
+          description: The chunk
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChunkResponse'
+        '404':
+          description: |
+            `WORKSPACE_NOT_FOUND`: no workspace with this id.
+            `SOURCE_NOT_FOUND`: no source with this id in this workspace (also when the source belongs to another workspace).
+            `CHUNK_NOT_FOUND`: no chunk with this id in this source (also when the chunk belongs to another source,
+            or was replaced by a newer version of the source).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              examples:
+                chunkNotFound:
+                  value:
+                    type: https://embedding-pgvector.example/errors/chunk-not-found
+                    title: Not Found
+                    status: 404
+                    detail: 'Chunk not found: 1380'
+                    instance: /api/workspaces/42/sources/10001/chunks/1380
+                    errorCode: CHUNK_NOT_FOUND
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspaces/{workspaceId}/ingestion-jobs/{jobId}:
+    get:
+      tags: [Ingestion]
+      operationId: getIngestionJob
+      summary: Get the stage and progress of an ingestion job
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - name: jobId
+          in: path
+          required: true
+          description: A value that is not a 64-bit integer (e.g. `abc`) answers 400 `BAD_REQUEST`; an unknown id answers 404.
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: The job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionJobResponse'
+        '404':
+          description: |
+            `WORKSPACE_NOT_FOUND`: no workspace with this id.
+            `INGESTION_JOB_NOT_FOUND`: no job with this id in this workspace (also when the job belongs to another workspace).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspaces/{workspaceId}/search:
+    post:
+      tags: [Search]
+      operationId: searchChunks
+      summary: Search the chunks of a workspace in keyword, vector or hybrid mode
+      description: |
+        Missing optional fields take their configured defaults (`search.default-*`). The search is logged
+        as a search event when it returns 200 (also with zero hits). It does not create anything else.
+        Besides the fields of `SearchEventResponse`, the event stores (not exposed by the API) a query key for
+        `listPopularQueries`, the keyword branch count (`keywordCount`, null in VECTOR mode) and the smallest
+        `distance` among the returned hits (null in KEYWORD mode or when no hit has a distance).
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchChunksRequest'
+            examples:
+              hybridDefaults:
+                value:
+                  query: Yıllık izin kaç gün?
+              postFilter:
+                value:
+                  query: Masraf beyanı kaç gün içinde yapılır?
+                  mode: HYBRID
+                  filterStrategy: POST_FILTER
+                  efSearch: 40
+                  limit: 10
+                  channel: Temsilci paneli
+                  explain: true
+      responses:
+        '200':
+          description: Search result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResultResponse'
+        '400':
+          description: |
+            `VALIDATION_FAILED`: `query` blank or longer than 500 characters after stripping, `mode` / `filterStrategy`
+            not one of the allowed values, `efSearch` not in 10-1000, `limit` not in 1-50, `channel` longer than 60 characters.
+            `violations[].field` is the request field name.
+            `BAD_REQUEST`: body missing or not valid JSON, or a field has the wrong JSON type.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '409':
+          description: |
+            `EMBEDDING_MODEL_MISMATCH`: only in `VECTOR` and `HYBRID` mode. The configured model tag
+            (`embedding.model` + `@` + `embedding.dimensions`) differs from an `embeddingModel` tag of the workspace chunks,
+            or the model returned a vector with a different length. `KEYWORD` mode is not affected.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/EmbeddingUnavailable'
+
+  /api/workspaces/{workspaceId}/search-events:
+    get:
+      tags: [Search]
+      operationId: listSearchEvents
+      summary: List the search events of a workspace, newest first
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: One page of search events ordered by createdAt descending, then id descending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResponseSearchEventResponse'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspaces/{workspaceId}/search-events/stats:
+    get:
+      tags: [Search]
+      operationId: getSearchEventStats
+      summary: Get the search log indicators of a workspace (today, zero-result rate, low-result rate)
+      description: |
+        Calculated by the backend over the search events of the workspace, all channels.
+        Days are calendar days in `timeZone` (`search.stats-time-zone`, Europe/Istanbul).
+        "Today" starts at 00:00 today in that zone. "Last 7 days" starts at 00:00 six days before today
+        (today plus the six previous days). Events newer than the current time do not exist and are not filtered.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '200':
+          description: The indicators
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchEventStatsResponse'
+              examples:
+                fourSearchesToday:
+                  value:
+                    totalCount: 4
+                    todayCount: 4
+                    last7DaysCount: 4
+                    zeroResultCount: 1
+                    lowResultCount: 1
+                    zeroResultRate: 0.25
+                    lowResultRate: 0.25
+                    timeZone: Europe/Istanbul
+                    todayStart: '2026-10-24T21:00:00Z'
+                    last7DaysStart: '2026-10-18T21:00:00Z'
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workspaces/{workspaceId}/search-events/popular-queries:
+    get:
+      tags: [Search]
+      operationId: listPopularQueries
+      summary: List the most repeated searches of a workspace that found something ("Sık aranan")
+      description: |
+        Groups the search events of the workspace (all channels, all modes, any time) by query key and returns
+        at most `search.popular-query-limit` (5) groups.
+        - **Query key:** the stored (already stripped) query with every run of whitespace replaced by one space,
+          then Unicode NFC, then `İ`, `I`, `ı` replaced by `i`, then lower case (same rule as the source name key).
+          "İzin nasıl alınır" and "izin  nasıl alınır " have the same key. Punctuation is kept:
+          "Yıllık izin kaç gün?" and "Yıllık izin kaç gün" are different.
+        - **Counted events:** `resultCount` >= 1 and (keyword branch count >= 1 or the smallest hit `distance`
+          <= `search.popular-max-distance`). A search whose hits all came from the vector branch and were all
+          farther than the threshold (an unrelated question) is not counted. An event with neither value
+          is never counted.
+        - **Order:** `searchCount` descending, then `lastSearchedAt` descending, then the newest event id descending.
+        - **`query`:** the query text of the newest counted event of the group (as typed then, stripped).
+        Not paginated: the list is bounded by the limit.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '200':
+          description: The popular queries; `queries` is empty when no counted search exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PopularQueriesResponse'
+              examples:
+                threeQueries:
+                  value:
+                    queries:
+                      - query: parolamı unuttum hesabım kilitlendi
+                        searchCount: 2
+                        lastSearchedAt: '2026-10-25T09:21:40.118Z'
+                      - query: Masraf beyanı kaç gün içinde yapılır?
+                        searchCount: 1
+                        lastSearchedAt: '2026-10-25T09:22:05.902Z'
+                      - query: Yıllık izin kaç gün?
+                        searchCount: 1
+                        lastSearchedAt: '2026-10-25T09:20:11.437Z'
+                none:
+                  value:
+                    queries: []
+        '404':
+          $ref: '#/components/responses/WorkspaceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      description: A value that is not a 64-bit integer (e.g. `abc`) answers 400 `BAD_REQUEST`; an unknown id answers 404.
+      schema:
+        type: integer
+        format: int64
+      example: 42
+    SourceId:
+      name: sourceId
+      in: path
+      required: true
+      description: A value that is not a 64-bit integer (e.g. `abc`) answers 400 `BAD_REQUEST`; an unknown id answers 404.
+      schema:
+        type: integer
+        format: int64
+      example: 10001
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Zero-based page index
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      required: false
+      description: Page size
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    IngestionAccepted:
+      description: Job accepted; it runs in the background
+      headers:
+        Location:
+          description: URL of the ingestion job (same as `statusUrl`)
+          schema:
+            type: string
+          example: /api/workspaces/42/ingestion-jobs/1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IngestionJobResponse'
+          examples:
+            queued:
+              value:
+                jobId: 1
+                workspaceId: 42
+                sourceId: 10001
+                version: null
+                fileName: Atlaskap-Lojistik-Surec-El-Kitabi.pdf
+                stage: QUEUED
+                progress: 0.0
+                embeddedChunks: 0
+                totalChunks: null
+                errorCode: null
+                createdAt: '2026-10-25T09:15:02.481Z'
+                startedAt: null
+                finishedAt: null
+                statusUrl: /api/workspaces/42/ingestion-jobs/1
+    ValidationFailed:
+      description: '`VALIDATION_FAILED`: `page` < 0 or `size` not in 1-100 (`violations[].field` = `page` / `size`)'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    UploadValidationFailed:
+      description: |
+        `VALIDATION_FAILED`: `name` missing / blank / not 2-80 characters after stripping (create only),
+        `file` missing or empty (0 bytes), `version` longer than 40 characters after stripping (versions only).
+        `violations[].field` is the part name (`name`, `file`, `version`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          examples:
+            emptyFile:
+              value:
+                type: https://embedding-pgvector.example/errors/validation-failed
+                title: Validation Failed
+                status: 400
+                detail: Request validation failed
+                instance: /api/workspaces/42/sources
+                errorCode: VALIDATION_FAILED
+                violations:
+                  - field: file
+                    message: must not be empty
+    FileTooLarge:
+      description: '`FILE_TOO_LARGE`: the file is larger than 20 MB'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          examples:
+            tooLarge:
+              value:
+                type: https://embedding-pgvector.example/errors/file-too-large
+                title: Content Too Large
+                status: 413
+                detail: Uploaded file exceeds the maximum size
+                instance: /api/workspaces/42/sources/10001/versions
+                errorCode: FILE_TOO_LARGE
+    UnsupportedFile:
+      description: |
+        `UNSUPPORTED_FILE_TYPE`: extension is not `.pdf`, `.txt`, `.md`, `.markdown`, `.csv`, or the content does not match
+        the extension (a `.pdf` without `%PDF-` in its first 1024 bytes, a text file with NUL bytes).
+        `UNSUPPORTED_FILE_ENCODING`: a `.txt` / `.md` / `.markdown` / `.csv` file that is not valid UTF-8.
+        `UNSUPPORTED_MEDIA_TYPE`: the request itself is not `multipart/form-data`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          examples:
+            docx:
+              value:
+                type: https://embedding-pgvector.example/errors/unsupported-file-type
+                title: Unsupported Media Type
+                status: 415
+                detail: 'Unsupported file type: docx'
+                instance: /api/workspaces/42/sources
+                errorCode: UNSUPPORTED_FILE_TYPE
+    WorkspaceNotFound:
+      description: '`WORKSPACE_NOT_FOUND`: no workspace with this id'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          examples:
+            notFound:
+              value:
+                type: https://embedding-pgvector.example/errors/workspace-not-found
+                title: Not Found
+                status: 404
+                detail: 'Workspace not found: 999'
+                instance: /api/workspaces/999
+                errorCode: WORKSPACE_NOT_FOUND
+    WorkspaceOrSourceNotFound:
+      description: |
+        `WORKSPACE_NOT_FOUND`: no workspace with this id.
+        `SOURCE_NOT_FOUND`: no source with this id in this workspace (also when the source belongs to another workspace).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    EmbeddingUnavailable:
+      description: |
+        `EMBEDDING_UNAVAILABLE`: Ollama is not reachable, does not answer within the read timeout,
+        returns a 5xx/unexpected status, or returns no vector.
+        `EMBEDDING_MODEL_NOT_FOUND`: the configured model is not pulled in Ollama (Ollama answers 404).
+        Ollama's own error body is never copied into `detail`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          examples:
+            embeddingUnavailable:
+              value:
+                type: https://embedding-pgvector.example/errors/embedding-unavailable
+                title: Service Unavailable
+                status: 503
+                detail: Embedding service is not reachable
+                instance: /api/embeddings
+                errorCode: EMBEDDING_UNAVAILABLE
+            embeddingModelNotFound:
+              value:
+                type: https://embedding-pgvector.example/errors/embedding-model-not-found
+                title: Service Unavailable
+                status: 503
+                detail: 'Embedding model is not available: bge-m3'
+                instance: /api/embeddings
+                errorCode: EMBEDDING_MODEL_NOT_FOUND
+    InternalError:
+      description: '`INTERNAL_ERROR`: unexpected server error'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+  schemas:
+    EmbedTextRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          description: |
+            Text to embed. Leading and trailing whitespace is stripped before validation and embedding;
+            whitespace inside the text is kept. After stripping it must not be empty and must be at most
+            2000 characters (UTF-16 code units, same as JavaScript `String.length`).
+          maxLength: 2000
+          example: Yıllık izin kaç gün?
+    EmbeddingResponse:
+      type: object
+      required: [embeddingModel, dimensions, embedding, durationMs]
+      properties:
+        embeddingModel:
+          type: string
+          description: Configured Ollama model name used for this embedding (`embedding.model`)
+          example: bge-m3
+        dimensions:
+          type: integer
+          format: int32
+          description: Number of values in `embedding`
+          example: 1024
+        embedding:
+          type: array
+          description: The vector returned by the model
+          items:
+            type: number
+            format: float
+        durationMs:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Milliseconds from sending the request to Ollama until its answer was received (measured by the backend)
+          example: 85
+
+    WorkspaceResponse:
+      type: object
+      required: [workspaceId, name, sourceCount, chunkCount, embeddingModels]
+      properties:
+        workspaceId:
+          type: integer
+          format: int64
+          example: 42
+        name:
+          type: string
+          example: Belgelerim
+        sourceCount:
+          type: integer
+          format: int32
+          description: Number of sources of the workspace (all statuses)
+          example: 1
+        chunkCount:
+          type: integer
+          format: int64
+          description: Number of chunks of the workspace
+          example: 24
+        embeddingModels:
+          type: array
+          description: |
+            Distinct `embeddingModel` tags of the workspace chunks (`<model>@<dimensions>`), sorted ascending.
+            Empty when the workspace has no chunks. Normally one tag; more than one only after a model change.
+          items:
+            type: string
+          example: [bge-m3@1024]
+
+    SourceResponse:
+      type: object
+      required: [sourceId, workspaceId, name, kind, chunkCount, status, createdAt]
+      properties:
+        sourceId:
+          type: integer
+          format: int64
+          example: 10001
+        workspaceId:
+          type: integer
+          format: int64
+          example: 42
+        name:
+          type: string
+          example: Atlaskap-Lojistik-Surec-El-Kitabi
+        kind:
+          type: string
+          enum: [WEB_CRAWL, PDF, MARKDOWN, CSV, TICKET_EXPORT]
+          description: |
+            `MARKDOWN` covers `.txt`, `.md`, `.markdown`. Uploads create only `PDF`, `MARKDOWN` and `CSV`.
+            `WEB_CRAWL` and `TICKET_EXPORT` belonged to the removed demo data; no source has them after the
+            0.5.0 migration. They stay in the enum for schema compatibility and cannot receive uploads.
+          example: PDF
+        version:
+          type: [string, 'null']
+          description: Version label of the last successful ingestion; null when none was given
+          example: '2026.1'
+        chunkCount:
+          type: integer
+          format: int32
+          description: Number of chunks of the current (last successful) version
+          example: 24
+        status:
+          type: string
+          enum: [INGESTING, READY, FAILED]
+          description: |
+            `INGESTING` while a job is running (old chunks stay searchable), `READY` when the last successful version is in place,
+            `FAILED` when the source never had a successful version.
+        syncedAt:
+          type: [string, 'null']
+          format: date-time
+          description: Time of the last successful ingestion; null if there was none
+        fileName:
+          type: [string, 'null']
+          description: File name of the last successful version; null when there was none
+          example: Atlaskap-Lojistik-Surec-El-Kitabi.pdf
+        createdAt:
+          type: string
+          format: date-time
+        latestJob:
+          description: |
+            The newest ingestion job of the source (highest `jobId`), in any stage, with the same fields as
+            `GET /api/workspaces/{workspaceId}/ingestion-jobs/{jobId}`. Null only when the source never had a job; a source
+            created by an upload always has one. Lets a client find a running job after a page reload (`stage` not `DONE` / `FAILED`)
+            and show why the last upload failed (`stage` = `FAILED`, `errorCode`); a failed version upload leaves
+            `status` as `READY`, so only this field tells that it failed.
+          anyOf:
+            - $ref: '#/components/schemas/IngestionJobResponse'
+            - type: 'null'
+
+    ChunkResponse:
+      type: object
+      required: [chunkId, chunkNo, content, tokenCount, embeddingModel]
+      properties:
+        chunkId:
+          type: integer
+          format: int64
+        chunkNo:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Order inside the source, starting at 0
+        heading:
+          type: [string, 'null']
+          example: s. 6 · 5. Yıllık izin
+        content:
+          type: string
+        tokenCount:
+          type: integer
+          format: int32
+          description: Approximate token count, ceil(characters of heading + content / 4)
+        embeddingModel:
+          type: string
+          description: Tag of the model that produced the vector (`<model>@<dimensions>`)
+          example: bge-m3@1024
+
+    IngestionJobResponse:
+      type: object
+      required: [jobId, workspaceId, sourceId, fileName, stage, progress, embeddedChunks, createdAt, statusUrl]
+      properties:
+        jobId:
+          type: integer
+          format: int64
+          example: 7
+        workspaceId:
+          type: integer
+          format: int64
+        sourceId:
+          type: integer
+          format: int64
+        version:
+          type: [string, 'null']
+          description: Version label given with the upload
+        fileName:
+          type: string
+        stage:
+          type: string
+          enum: [QUEUED, PARSING, CHUNKING, EMBEDDING, WRITING, DONE, FAILED]
+        progress:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: |
+            QUEUED 0.0, PARSING 0.05, CHUNKING 0.1, EMBEDDING 0.1 + 0.8 × embeddedChunks / totalChunks, WRITING 0.9, DONE 1.0.
+            FAILED keeps the value it had when the job failed.
+        embeddedChunks:
+          type: integer
+          format: int32
+          description: Chunks embedded so far; grows by one batch (at most 96) at a time
+        totalChunks:
+          type: [integer, 'null']
+          format: int32
+          description: Number of chunks; null until the CHUNKING stage is finished
+        errorCode:
+          type: [string, 'null']
+          enum: [NO_TEXT_EXTRACTED, FILE_UNREADABLE, EMBEDDING_UNAVAILABLE, EMBEDDING_MODEL_NOT_FOUND, EMBEDDING_MODEL_MISMATCH, INGESTION_INTERRUPTED, INTERNAL_ERROR, null]
+          description: |
+            Only when `stage` is `FAILED`.
+            `NO_TEXT_EXTRACTED`: the file has no text (e.g. image-only PDF, CSV with only a header).
+            `FILE_UNREADABLE`: the PDF cannot be parsed (corrupt or password protected).
+            `EMBEDDING_UNAVAILABLE` / `EMBEDDING_MODEL_NOT_FOUND`: same meaning as the HTTP errors.
+            `EMBEDDING_MODEL_MISMATCH`: the model returned vectors with a different length than `embedding.dimensions`.
+            `INGESTION_INTERRUPTED`: the backend stopped while the job was running.
+            `INTERNAL_ERROR`: unexpected error.
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: [string, 'null']
+          format: date-time
+        finishedAt:
+          type: [string, 'null']
+          format: date-time
+        statusUrl:
+          type: string
+          description: Relative URL of this job
+          example: /api/workspaces/42/ingestion-jobs/7
+
+    SearchChunksRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          description: Leading and trailing whitespace is stripped; then 1-500 characters (UTF-16 code units).
+          maxLength: 500
+          example: Yıllık izin kaç gün?
+        mode:
+          type: [string, 'null']
+          description: '`KEYWORD`, `VECTOR` or `HYBRID`, case-insensitive. Default: `search.default-mode` (HYBRID).'
+          pattern: '(?i)keyword|vector|hybrid'
+          example: HYBRID
+        filterStrategy:
+          type: [string, 'null']
+          description: |
+            `POST_FILTER` (`hnsw.iterative_scan = off`) or `ITERATIVE_SCAN` (`hnsw.iterative_scan = relaxed_order`),
+            case-insensitive. Ignored in KEYWORD mode. Default: `search.default-filter-strategy` (ITERATIVE_SCAN).
+          pattern: '(?i)post_filter|iterative_scan'
+          example: ITERATIVE_SCAN
+        efSearch:
+          type: [integer, 'null']
+          format: int32
+          minimum: 10
+          maximum: 1000
+          description: '`hnsw.ef_search` for this query only. Ignored in KEYWORD mode. Default: `search.default-ef-search` (40).'
+          example: 40
+        limit:
+          type: [integer, 'null']
+          format: int32
+          minimum: 1
+          maximum: 50
+          description: Number of results, also the LIMIT of each branch. Default `search.default-limit` (10).
+          example: 10
+        channel:
+          type: [string, 'null']
+          maxLength: 60
+          description: Stored in the search event only. Stripped; blank becomes null.
+          example: Temsilci paneli
+        explain:
+          type: [boolean, 'null']
+          description: When true and mode is VECTOR or HYBRID, `vectorPlan` contains the EXPLAIN (ANALYZE, BUFFERS) output of the vector branch. Default false.
+
+    SearchResultResponse:
+      type: object
+      required: [query, mode, limit, returnedCount, vectorShort, timings, hits]
+      properties:
+        query:
+          type: string
+          description: The stripped query
+        mode:
+          type: string
+          enum: [KEYWORD, VECTOR, HYBRID]
+        filterStrategy:
+          type: [string, 'null']
+          enum: [POST_FILTER, ITERATIVE_SCAN, null]
+          description: Null in KEYWORD mode
+        efSearch:
+          type: [integer, 'null']
+          format: int32
+          description: Null in KEYWORD mode
+        limit:
+          type: integer
+          format: int32
+          description: Requested number of results
+        returnedCount:
+          type: integer
+          format: int32
+          description: Number of hits returned
+        keywordCount:
+          type: [integer, 'null']
+          format: int32
+          description: Rows found by the keyword branch (at most `limit`); null in VECTOR mode
+        vectorCount:
+          type: [integer, 'null']
+          format: int32
+          description: Rows found by the vector branch after the workspace filter (at most `limit`); null in KEYWORD mode
+        vectorShort:
+          type: boolean
+          description: True when the vector branch returned fewer than `limit` rows; always false in KEYWORD mode
+        timings:
+          $ref: '#/components/schemas/SearchTimingsResponse'
+        hits:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchHitResponse'
+        vectorPlan:
+          type: [string, 'null']
+          description: EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) text of the vector branch; only when `explain` was true and mode is not KEYWORD
+
+    SearchTimingsResponse:
+      type: object
+      required: [sqlMs, totalMs]
+      properties:
+        embeddingMs:
+          type: [integer, 'null']
+          format: int64
+          description: Time of the query embedding call; null in KEYWORD mode (no call is made)
+        sqlMs:
+          type: integer
+          format: int64
+          description: Time of the search SQL (including SET LOCAL statements), without the EXPLAIN query
+        totalMs:
+          type: integer
+          format: int64
+          description: Time from the start of the search until the response was built (embedding, SQL, highlighting, EXPLAIN)
+
+    SearchHitResponse:
+      type: object
+      required: [rank, chunkId, chunkNo, sourceId, sourceName, content, matchedBy, matchedTerms]
+      properties:
+        rank:
+          type: integer
+          format: int32
+          description: 1-based position in this response
+        chunkId:
+          type: integer
+          format: int64
+        chunkNo:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Order of the chunk inside its source (same value as `ChunkResponse.chunkNo`)
+          example: 31
+        sourceId:
+          type: integer
+          format: int64
+        sourceName:
+          type: string
+        heading:
+          type: [string, 'null']
+        content:
+          type: string
+          description: |
+            Full text of the chunk, never shortened; the same value as `ChunkResponse.content` of this chunk.
+            Line breaks are kept (`\n` inside a paragraph, `\n\n` between paragraphs). Plain text, no HTML.
+        matchedBy:
+          type: array
+          description: Branches that found the chunk, in this order when both
+          items:
+            type: string
+            enum: [KEYWORD, SEMANTIC]
+        keywordRank:
+          type: [integer, 'null']
+          format: int32
+          description: 1-based position in the keyword branch
+        keywordScore:
+          type: [number, 'null']
+          format: double
+          description: ts_rank_cd value
+        vectorRank:
+          type: [integer, 'null']
+          format: int32
+          description: 1-based position in the vector branch
+        distance:
+          type: [number, 'null']
+          format: double
+          description: Cosine distance (`<=>`) to the query vector; smaller is closer
+        rrfScore:
+          type: [number, 'null']
+          format: double
+          description: 'Only in HYBRID mode: 1 / (rrfK + keywordRank) + 1 / (rrfK + vectorRank), a missing rank adds 0'
+        matchedTerms:
+          type: array
+          description: Words of heading/content whose stems match the query stems; empty unless the keyword branch found the chunk. No HTML.
+          items:
+            $ref: '#/components/schemas/MatchedTermResponse'
+
+    MatchedTermResponse:
+      type: object
+      required: [field, start, end]
+      properties:
+        field:
+          type: string
+          enum: [HEADING, CONTENT]
+        start:
+          type: integer
+          format: int32
+          description: |
+            Start offset in the full field text (`heading`, or the whole `content`, not a preview of it),
+            UTF-16 code units (JavaScript string index), inclusive
+        end:
+          type: integer
+          format: int32
+          description: End offset, exclusive
+      example:
+        field: CONTENT
+        start: 0
+        end: 6
+
+    SearchEventResponse:
+      type: object
+      required: [searchEventId, createdAt, query, mode, resultCount, totalMs]
+      properties:
+        searchEventId:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        channel:
+          type: [string, 'null']
+        query:
+          type: string
+        mode:
+          type: string
+          enum: [KEYWORD, VECTOR, HYBRID]
+        filterStrategy:
+          type: [string, 'null']
+          enum: [POST_FILTER, ITERATIVE_SCAN, null]
+        limit:
+          type: [integer, 'null']
+          format: int32
+          description: |
+            Requested number of results of the search (`SearchResultResponse.limit`). Null for events stored before
+            API 0.3.0, when it was not recorded.
+          example: 10
+        resultCount:
+          type: integer
+          format: int32
+        topChunkId:
+          type: [integer, 'null']
+          format: int64
+          description: Chunk id of the first hit; null when there was no hit
+        topChunkHeading:
+          type: [string, 'null']
+          description: Heading of the first hit at search time (kept even if the chunk is later replaced)
+        totalMs:
+          type: integer
+          format: int64
+
+    SearchEventStatsResponse:
+      type: object
+      required: [totalCount, todayCount, last7DaysCount, zeroResultCount, lowResultCount, timeZone, todayStart, last7DaysStart]
+      properties:
+        totalCount:
+          type: integer
+          format: int64
+          description: All search events of the workspace, any time
+        todayCount:
+          type: integer
+          format: int64
+          description: Events with `createdAt` >= `todayStart`
+        last7DaysCount:
+          type: integer
+          format: int64
+          description: Events with `createdAt` >= `last7DaysStart`
+        zeroResultCount:
+          type: integer
+          format: int64
+          description: Events of the last 7 days with `resultCount` = 0
+        lowResultCount:
+          type: integer
+          format: int64
+          description: |
+            Events of the last 7 days with `resultCount` >= 1 and `resultCount` < `limit`.
+            Events with a null `limit` (stored before API 0.3.0) are never counted here.
+        zeroResultRate:
+          type: [number, 'null']
+          format: double
+          minimum: 0
+          maximum: 1
+          description: '`zeroResultCount / last7DaysCount`, not rounded; null when `last7DaysCount` is 0'
+        lowResultRate:
+          type: [number, 'null']
+          format: double
+          minimum: 0
+          maximum: 1
+          description: '`lowResultCount / last7DaysCount`, not rounded; null when `last7DaysCount` is 0'
+        timeZone:
+          type: string
+          description: Time zone that defines the days
+          example: Europe/Istanbul
+        todayStart:
+          type: string
+          format: date-time
+          description: 00:00 today in `timeZone`, as an instant
+        last7DaysStart:
+          type: string
+          format: date-time
+          description: 00:00 six days before today in `timeZone`, as an instant
+
+    PopularQueriesResponse:
+      type: object
+      required: [queries]
+      properties:
+        queries:
+          type: array
+          maxItems: 5
+          description: At most `search.popular-query-limit` (5) items, in the order described in `listPopularQueries`
+          items:
+            $ref: '#/components/schemas/PopularQueryResponse'
+
+    PopularQueryResponse:
+      type: object
+      required: [query, searchCount, lastSearchedAt]
+      properties:
+        query:
+          type: string
+          description: Query text of the newest counted search of the group
+          example: Yıllık izin kaç gün?
+        searchCount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Number of counted searches with this query key
+          example: 2
+        lastSearchedAt:
+          type: string
+          format: date-time
+          description: '`createdAt` of the newest counted search of the group'
+
+    PageResponseWorkspaceResponse:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkspaceResponse'
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseSourceResponse:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceResponse'
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseChunkResponse:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChunkResponse'
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseSearchEventResponse:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchEventResponse'
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+
+    ProblemDetail:
+      type: object
+      description: RFC 9457 Problem Details with the project's `errorCode` extension
+      required: [type, title, status, errorCode]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+          description: English, for humans only. Clients decide by `errorCode`.
+        instance:
+          type: string
+        errorCode:
+          type: string
+          description: Stable error code
+          enum:
+            - VALIDATION_FAILED
+            - BAD_REQUEST
+            - NOT_FOUND
+            - METHOD_NOT_ALLOWED
+            - NOT_ACCEPTABLE
+            - UNSUPPORTED_MEDIA_TYPE
+            - EMBEDDING_UNAVAILABLE
+            - EMBEDDING_MODEL_NOT_FOUND
+            - INTERNAL_ERROR
+            - WORKSPACE_NOT_FOUND
+            - SOURCE_NOT_FOUND
+            - CHUNK_NOT_FOUND
+            - INGESTION_JOB_NOT_FOUND
+            - SOURCE_NAME_TAKEN
+            - SOURCE_LIMIT_REACHED
+            - SOURCE_KIND_MISMATCH
+            - INGESTION_IN_PROGRESS
+            - EMBEDDING_MODEL_MISMATCH
+            - FILE_TOO_LARGE
+            - UNSUPPORTED_FILE_TYPE
+            - UNSUPPORTED_FILE_ENCODING
+        violations:
+          type: array
+          description: Only for `VALIDATION_FAILED`
+          items:
+            $ref: '#/components/schemas/Violation'
+    Violation:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          example: text
+        message:
+          type: string
+          description: Fixed English message
+          example: must not be blank

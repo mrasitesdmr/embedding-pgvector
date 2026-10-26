@@ -1,0 +1,30 @@
+.row {
+  cursor: pointer;
+}
+
+.row:hover td {
+  background: var(--color-surface-hover);
+}
+
+.name {
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.row:hover .name {
+  color: var(--color-brand-strong);
+  text-decoration: underline;
+}
+
+.row td {
+  transition: background-color 0.6s ease;
+}
+
+.isJustCompleted td,
+.isJustCompleted:hover td {
+  background: var(--color-row-highlight);
+}
+
+.actions:not(:empty) {
+  margin-top: var(--space-3);
+}

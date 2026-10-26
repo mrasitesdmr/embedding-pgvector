@@ -1,0 +1,22 @@
+.highlighted td {
+  background: var(--color-row-highlight);
+}
+
+.highlighted td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+.preview {
+  display: block;
+  color: var(--color-ink-soft);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.fullText {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+  color: var(--color-ink-soft);
+}

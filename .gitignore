@@ -1,0 +1,15 @@
+.DS_Store
+.idea/
+*.iml
+# Backend
+backend/target/
+backend/build/
+# Frontend
+frontend/node_modules/
+frontend/dist/
+# Ortam
+.env
+*.env.local
+# Geçici
+scratch/
+.claude/settings.local.json

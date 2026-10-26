@@ -1,0 +1,43 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1"
+  },
+  "teammateMode": "tmux",
+  "permissions": {
+    "allow": [
+      "Bash(git diff:*)",
+      "Bash(git status:*)",
+      "Edit(/handoff/**)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(./mvnw *)",
+      "Bash(npm ci)",
+      "Bash(npm test)",
+      "Bash(npm test *)",
+      "Bash(npm run *)",
+      "Bash(npx vitest *)",
+      "Bash(npx playwright test *)",
+      "Bash(npx playwright install chromium)",
+      "Bash(E2E_BASE_URL=http://localhost:* npm run test:e2e)",
+      "Bash(npx stryker *)",
+      "Bash(docker info)",
+      "Bash(docker compose *)",
+      "Bash(curl -s localhost:*)",
+      "Bash(curl -sf localhost:*)",
+      "Edit(/backend/**)",
+      "Edit(/frontend/**)",
+      "Edit(/deployment/**)",
+      "Edit(/docs/**)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(npm install *)"
+    ],
+    "deny": [
+      "Bash(git push *)",
+      "Edit(**/.env)",
+      "Read(**/.env)"
+    ]
+  }
+}
